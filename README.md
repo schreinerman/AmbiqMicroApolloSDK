@@ -8,3 +8,5 @@ The SDK can be used with FEEU MCU Templates, already configured for the correct 
 If HW shall be enabled, this must be done in RTE_Device.h. Example:
 
 #define IOMSTR0_ENABLED 1
+
+A complete documentation will follow soon.
