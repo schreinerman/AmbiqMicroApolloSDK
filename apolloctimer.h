@@ -38,7 +38,8 @@ so agrees to indemnify Fujitsu against all liability.
  **
  ** History:
  **   - 2017-05-16  V1.0  MSc  First Version
-
+ **   - 2017-06-20  V1.1  MSc  Updated general initialization routine
+ **
  *****************************************************************************/
 #ifndef __APOLLOCTIMER_H__
 #define __APOLLOCTIMER_H__
@@ -94,6 +95,31 @@ extern "C"
 #define CTIMERB2 ((stc_apolloctimer_timer_ab_t*)&stcCTimerB2)
 #define CTIMERA3 ((stc_apolloctimer_timer_ab_t*)&stcCTimerA3)
 #define CTIMERB3 ((stc_apolloctimer_timer_ab_t*)&stcCTimerB3)
+    
+
+#define APOLLOCTIMER_SINGLECOUNT 0x0 
+#define APOLLOCTIMER_REPEATEDCOUNT 0x1 
+#define APOLLOCTIMER_PULSE_ONCE 0x2
+#define APOLLOCTIMER_PULSE_CONT 0x3
+#define APOLLOCTIMER_CONTINUOUS 0x4
+    
+#define APOLLOCTIMER_TMRPIN 0x0
+#define APOLLOCTIMER_HFRC_DIV4 0x1
+#define APOLLOCTIMER_HFRC_DIV16 0x2
+#define APOLLOCTIMER_HFRC_DIV256 0x3
+#define APOLLOCTIMER_HFRC_DIV1024 0x4
+#define APOLLOCTIMER_HFRC_DIV4K 0x5
+#define APOLLOCTIMER_XT 0x6
+#define APOLLOCTIMER_XT_DIV2 0x7
+#define APOLLOCTIMER_XT_DIV16 0x8
+#define APOLLOCTIMER_XT_DIV256 0x9
+#define APOLLOCTIMER_LFRC_DIV2 0xA    
+#define APOLLOCTIMER_LFRC_DIV32 0xB    
+#define APOLLOCTIMER_LFRC_DIV1K 0xC 
+#define APOLLOCTIMER_LFRC 0xD
+#define APOLLOCTIMER_RTC_100HZ 0xE    
+#define APOLLOCTIMER_HCLK_DIV4 0xF    
+#define APOLLOCTIMER_BUCK 0x10    
     
 /*****************************************************************************/
 /* Global type definitions ('typedef')                                        */
@@ -169,12 +195,13 @@ typedef enum en_apolloctimer_ab
 
 typedef enum en_apolloctimer_function
 {
-    CTimerSingleCount = 0,
-    CTimerRepeatedCount = 1,
-    CTimerSinglePulse = 2,
-    CTimerRepeatedPulse = 3,
-    CTimerContinuous = 4,
+    CTimerSingleCount = APOLLOCTIMER_SINGLECOUNT,
+    CTimerRepeatedCount = APOLLOCTIMER_REPEATEDCOUNT,
+    CTimerSinglePulse = APOLLOCTIMER_PULSE_ONCE,
+    CTimerRepeatedPulse = APOLLOCTIMER_PULSE_CONT,
+    CTimerContinuous = APOLLOCTIMER_CONTINUOUS,
 } en_apolloctimer_function_t;
+
 
 typedef struct stc_ctimer_timer_ab
 {
@@ -182,7 +209,43 @@ typedef struct stc_ctimer_timer_ab
     en_apolloctimer_ab_t enTimerAB;
 } stc_apolloctimer_timer_ab_t;
 
+typedef enum en_apolloctimer_clk
+{
+    ApolloCTimerTimerPin = APOLLOCTIMER_TMRPIN,
+    ApolloCTimerHFRCDiv4 = APOLLOCTIMER_HFRC_DIV4,
+    ApolloCTimerHFRCDiv16 = APOLLOCTIMER_HFRC_DIV16,
+    ApolloCTimerHFRCDiv256 = APOLLOCTIMER_HFRC_DIV256,
+    ApolloCTimerHFRCDiv1024 = APOLLOCTIMER_HFRC_DIV1024,
+    ApolloCTimerHFRCDiv4K = APOLLOCTIMER_HFRC_DIV4K,
+    ApolloCTimerXT = APOLLOCTIMER_XT,
+    ApolloCTimerXTDiv2 = APOLLOCTIMER_XT_DIV2,
+    ApolloCTimerXTDiv16 = APOLLOCTIMER_XT_DIV16,
+    ApolloCTimerXTDiv256 = APOLLOCTIMER_XT_DIV256,
+    ApolloCTimerLFRCDiv2 = APOLLOCTIMER_LFRC_DIV2,  
+    ApolloCTimerLFRCDiv32 = APOLLOCTIMER_LFRC_DIV32,  
+    ApolloCTimerLFRCDiv1K = APOLLOCTIMER_LFRC_DIV1K,
+    ApolloCTimerLFRC = APOLLOCTIMER_LFRC,
+    ApolloCTimerRTC100Hz = APOLLOCTIMER_RTC_100HZ,    
+    ApolloCTimerHCLKDiv4 = APOLLOCTIMER_HCLK_DIV4,   
+    ApolloCTimerBuckA = APOLLOCTIMER_BUCK
+} en_apolloctimer_clk_t;
 
+
+typedef struct stc_apolloctimer_config
+{
+    en_apolloctimer_clk_t enClockInput;
+    en_apolloctimer_function_t enFunction;
+    #if defined(APOLLO_H) || defined(APOLLO1_H)
+        boolean_t bReserved;
+        boolean_t bInterruptEnableCompare;
+    #elif defined(APOLLO2_H)
+        boolean_t bInterruptEnableCompare0;
+        boolean_t bInterruptEnableCompare1;      
+    #endif
+    boolean_t bInvertPolarity;
+    boolean_t bOutputEnable;
+    boolean_t bLinkABTimers32bit;
+} stc_apolloctimer_config_t;
 
 /*****************************************************************************/
 /* Global variable declarations ('extern', definition in C source)           */
@@ -207,6 +270,8 @@ void ApolloCTimer_PwmSetDutyByPin(int pin, float32_t f32Duty);
 #endif
 void ApolloCTimer_PwmInit(stc_apolloctimer_timer_ab_t* pstcHandle);
 void ApolloCTimer_PwmSetDuty(stc_apolloctimer_timer_ab_t* pstcHandle, float32_t f32Duty);
+void ApolloCTimer_Init(stc_apolloctimer_timer_ab_t* pstcHandle, stc_apolloctimer_config_t* pstcConfig);
+void ApolloCTimer_Start(stc_apolloctimer_timer_ab_t* pstcHandle);
 
 
 #ifdef __cplusplus

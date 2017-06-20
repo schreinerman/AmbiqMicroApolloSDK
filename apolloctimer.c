@@ -38,7 +38,8 @@ so agrees to indemnify Fujitsu against all liability.
  **
  ** History:
  **   - 2017-05-16  V1.0  MSc  First Version
-
+ **   - 2017-06-20  V1.1  MSc  Updated general initialization routine
+ **
  *****************************************************************************/
 #define __APOLLOCTIMER_C__
 /*****************************************************************************/
@@ -232,6 +233,89 @@ void ApolloCTimer_PwmInitByPin(int pin)
     ApolloCTimer_PwmInit(pstcHandle);
 }
 #endif
+
+/**
+ ******************************************************************************
+ ** \brief  Init CTimer
+ **
+ ** \param pstcHandle  Can be CTIMERA0, CTIMERB0, CTIMERA1, CTIMERB1
+ **                           CTIMERA2, CTIMERB2, CTIMERA3, CTIMERB3
+ **
+ ** \param pstcConfig  Timer configuration
+ **
+ ******************************************************************************/
+void ApolloCTimer_Init(stc_apolloctimer_timer_ab_t* pstcHandle, stc_apolloctimer_config_t* pstcConfig)
+{
+    if (pstcHandle == NULL) return;
+    if (pstcConfig->bLinkABTimers32bit)
+    {
+        pstcHandle->HANDLE->CTRL_b.CTLINK = 1;
+    }
+    if (pstcHandle->enTimerAB == CTimerA)
+    {
+        pstcHandle->HANDLE->CTRL_b.TMRACLR = 1;         //clear timer
+    
+        pstcHandle->HANDLE->CTRL_b.TMRAPE = pstcConfig->bOutputEnable;          //enable output timer
+        pstcHandle->HANDLE->CTRL_b.TMRAPOL = pstcConfig->bInvertPolarity;
+        #if defined(APOLLO_H) || defined(APOLLO1_H)
+            pstcHandle->HANDLE->CTRL_b.TMRAIE = pstcConfig->bInterruptEnableCompare;          //enable IRQ timer
+        #elif defined(APOLLO2_H)
+            pstcHandle->HANDLE->CTRL_b.TMRAIE0 = pstcConfig->bInterruptEnableCompare0;          //enable IRQ timer 
+            pstcHandle->HANDLE->CTRL_b.TMRAIE1 = pstcConfig->bInterruptEnableCompare1;          //enable IRQ timer        
+        #endif
+        pstcHandle->HANDLE->CTRL_b.TMRAFN = (uint8_t)pstcConfig->enFunction;          //repeated pulse count timer
+        pstcHandle->HANDLE->CTRL_b.TMRACLK = (uint8_t)pstcConfig->enClockInput;      //HFRC div 128 (512 for Apollo 2)
+        
+        pstcHandle->HANDLE->CMPRA_b.CMPR0A = 1;         //periode - on-time timer
+        pstcHandle->HANDLE->CMPRA_b.CMPR1A = 255;       //on-time timer 
+        
+        pstcHandle->HANDLE->CTRL_b.TMRACLR = 0;         //release clear timer 
+        pstcHandle->HANDLE->CTRL_b.TMRAEN = 1;          //start timer 
+    } else if (pstcHandle->enTimerAB == CTimerB)
+    {
+        
+        pstcHandle->HANDLE->CTRL_b.TMRBCLR = 1;         //clear timer
+    
+        pstcHandle->HANDLE->CTRL_b.TMRBPE = pstcConfig->bOutputEnable;          //enable output timer
+        pstcHandle->HANDLE->CTRL_b.TMRBPOL = pstcConfig->bInvertPolarity;
+        #if defined(APOLLO_H) || defined(APOLLO1_H)
+            pstcHandle->HANDLE->CTRL_b.TMRBIE = pstcConfig->bInterruptEnableCompare;          //enable IRQ timer
+        #elif defined(APOLLO2_H)
+            pstcHandle->HANDLE->CTRL_b.TMRBIE0 = pstcConfig->bInterruptEnableCompare0;          //enable IRQ timer 
+            pstcHandle->HANDLE->CTRL_b.TMRBIE1 = pstcConfig->bInterruptEnableCompare1;          //enable IRQ timer        
+        #endif
+        pstcHandle->HANDLE->CTRL_b.TMRBFN = (uint8_t)pstcConfig->enFunction;          //repeated pulse count timer
+        pstcHandle->HANDLE->CTRL_b.TMRBCLK = (uint8_t)pstcConfig->enClockInput;      //HFRC div 128 (512 for Apollo 2)
+        
+        pstcHandle->HANDLE->CMPRB_b.CMPR0B = 128;         //periode - on-time timer
+        pstcHandle->HANDLE->CMPRB_b.CMPR1B = 255;       //on-time timer 
+        
+        pstcHandle->HANDLE->CTRL_b.TMRBCLR = 0;         //release clear timer 
+        pstcHandle->HANDLE->CTRL_b.TMRBEN = 1;          //start timer 
+    }
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Start CTimer
+ **
+ ** \param pstcHandle  Can be CTIMERA0, CTIMERB0, CTIMERA1, CTIMERB1
+ **                           CTIMERA2, CTIMERB2, CTIMERA3, CTIMERB3
+ **
+ ******************************************************************************/
+void ApolloCTimer_Start(stc_apolloctimer_timer_ab_t* pstcHandle)
+{
+    if (pstcHandle == NULL) return;
+    if (pstcHandle->enTimerAB == CTimerA)
+    {
+        pstcHandle->HANDLE->CTRL_b.TMRACLR = 0;         //release clear timer 
+        pstcHandle->HANDLE->CTRL_b.TMRAEN = 1;          //start timer 
+    } else if (pstcHandle->enTimerAB == CTimerB)
+    {
+        pstcHandle->HANDLE->CTRL_b.TMRBCLR = 0;         //release clear timer 
+        pstcHandle->HANDLE->CTRL_b.TMRBEN = 1;          //start timer 
+    }
+}
 
 /**
  ******************************************************************************
