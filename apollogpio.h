@@ -150,8 +150,8 @@ extern "C"
 #define	PIN_GPIO48	48
 #define	PIN_GPIO49	49
 
-#define SET_GPIO(n)       GPIO->WTSA = (1 << n) & 0xFFFFFFFF; GPIO->WTSB = (1 << (n - 32)) & 0xFFFFFFFF
-#define CLEAR_GPIO(n)     GPIO->WTCA = (1 << n) & 0xFFFFFFFF; GPIO->WTCB = (1 << (n - 32)) & 0xFFFFFFFF  
+#define SET_GPIO(n)       (n < 32) ? (GPIO->WTSA = (1 << n) & 0xFFFFFFFF) : (GPIO->WTSB = (1 << (n - 32)) & 0xFFFFFFFF)
+#define CLEAR_GPIO(n)     (n < 32) ? (GPIO->WTCA = (1 << n) & 0xFFFFFFFF) : (GPIO->WTCB = (1 << (n - 32)) & 0xFFFFFFFF)
     
 /*****************************************************************************/
 /* Global type definitions ('typedef')                                        */
