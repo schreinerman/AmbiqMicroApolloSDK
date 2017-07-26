@@ -39,6 +39,8 @@ so agrees to indemnify Fujitsu against all liability.
  ** History:
  **   - 2017-04-04  V1.0  MSc  First Version
  **   - 2017-04-13  V1.1  MSc  IRQs added, Smaller macro bug fixes
+ **   - 2017-06-26  V1.2  MSc  Read pin added
+ **   - 2017-07-26  V1.3  MSc  Fixed input setting
  **
  *****************************************************************************/
 #define __APOLLOGPIO_C__
@@ -290,6 +292,34 @@ void ApolloGpio_GpioSet(uint32_t pin, boolean_t bOnOff)
 
 /**
  ******************************************************************************
+ ** \brief  Read a value for a specified GPIO
+ **
+ ** \param pin  Can be every GPIO pin  
+ **             for example 1, 2, ... 49
+ **
+ ** \return bOnOff TRUE to set a logical high, FALSE for a logical FALSE
+ **
+ ******************************************************************************/
+boolean_t ApolloGpio_GpioGet(uint32_t pin)
+{
+    if (pin < 32)
+    {
+      if (GPIO->RDA & (1 << (pin)))
+      {
+          return TRUE;
+      }
+    } else
+    {
+      if (GPIO->RDB & (1 << (pin - 32)))
+      {
+          return TRUE;
+      }
+    }
+    return FALSE;
+}
+
+/**
+ ******************************************************************************
  ** \brief  Set a pullup for a specified GPIO
  **
  ** \param pin  Can be every GPIO pin  
@@ -319,7 +349,7 @@ void ApolloGpio_GpioInputEnable(uint32_t pin, boolean_t bEnable)
 {
     GPIO->PADKEY = 0x00000073;
     APOLLOGPIO_PADREG_WRITE(pin,GPIO_PADREGA_PAD0INPEN_Msk,(bEnable << GPIO_PADREGA_PAD0INPEN_Pos));
-    APOLLOGPIO_CFG_WRITE(pin,GPIO_CFGA_GPIO0INCFG_Msk,(1 << GPIO_CFGA_GPIO0INCFG_Pos));
+    //APOLLOGPIO_CFG_WRITE(pin,GPIO_CFGA_GPIO0INCFG_Msk,(bEnable << GPIO_CFGA_GPIO0INCFG_Pos));
     ApolloGpio_GpioSelectFunction(pin,3);
     GPIO->PADKEY = 0x00000000;
 }
@@ -384,8 +414,15 @@ void ApolloGpio_GpioOutputConfiguration(uint32_t pin, en_apollogpio_mode_t enMod
  ******************************************************************************/
 void ApolloGpio_GpioOutputEnable(uint32_t pin, boolean_t bEnable)
 {
-    ApolloGpio_GpioSelectFunction(pin,3);
-    ApolloGpio_GpioOutputConfiguration(pin,GpioPushPull);
+    if (bEnable)
+    {
+        ApolloGpio_GpioSelectFunction(pin,3);
+        ApolloGpio_GpioOutputConfiguration(pin,GpioPushPull);
+    } else
+    {
+        ApolloGpio_GpioSelectFunction(pin,3);
+        ApolloGpio_GpioOutputConfiguration(pin,GpioOutputDisabled); 
+    }
 }
 
 /**
@@ -402,6 +439,23 @@ void ApolloGpio_GpioSelectFunction(uint32_t pin, uint8_t u8Function)
 {
     GPIO->PADKEY = 0x00000073;
     APOLLOGPIO_PADREG_WRITE(pin,GPIO_PADREGA_PAD0FNCSEL_Msk,((u8Function & 0x7) << GPIO_PADREGA_PAD0FNCSEL_Pos));
+    GPIO->PADKEY = 0x00000000;
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Set the function for a specified GPIO
+ **
+ ** \param pin  Can be every GPIO pin with high side switch 
+ **             for example 1, 2, ... 49
+ **
+ ** \param bOnOff TRUE for on, FALSE for off
+ **
+ ******************************************************************************/
+void ApolloGpio_GpioSetHighSwitch(uint32_t pin, boolean_t bOnOff)
+{
+    GPIO->PADKEY = 0x00000073;
+    APOLLOGPIO_PADREG_WRITE(pin,(1 << 7),(bOnOff << 7));
     GPIO->PADKEY = 0x00000000;
 }
 

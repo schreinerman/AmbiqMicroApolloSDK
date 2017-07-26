@@ -39,6 +39,8 @@ so agrees to indemnify Fujitsu against all liability.
  ** History:
  **   - 2017-04-04  V1.0  MSc  First Version
  **   - 2017-04-13  V1.1  MSc  IRQs added, Smaller macro bug fixes
+ **   - 2017-06-26  V1.2  MSc  Read pin added
+ **   - 2017-07-26  V1.3  MSc  Fixed input setting
  **
  *****************************************************************************/
 #ifndef __APOLLOGPIO_H__
@@ -193,6 +195,8 @@ boolean_t ApolloGpio_IrqIsEnabled(uint32_t pin);
 boolean_t ApolloGpio_IrqIsPending(uint32_t pin);
 boolean_t ApolloGpio_IrqExecute(uint32_t pin);
 void ApolloGpio_RegisterIrq(uint32_t pin, en_apollogpio_edgedetect_t enMode, pfn_apollogpio_callback_t pfnCallback);
+boolean_t ApolloGpio_GpioGet(uint32_t pin);
+void ApolloGpio_GpioSetHighSwitch(uint32_t pin, boolean_t bOnOff);
 
 #endif /* (APOLLOGPIO_ENABLED == 1) */
 
