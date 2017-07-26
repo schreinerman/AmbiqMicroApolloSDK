@@ -1,4 +1,4 @@
-/*******************************************************************************
+﻿/*******************************************************************************
 * Copyright (C) 2016, Fujitsu Electronics Europe GmbH or a                     *
 * subsidiary of Fujitsu Electronics Europe GmbH.                               *
 *                                                                              *
@@ -49,6 +49,7 @@
  **   - 2016-04-13  V1.1  MSc  Added IRQs and callbacks
  **   - 2016-05-16  V1.2  MSc  Added Apollo 2 support
  **   - 2016-06-26  V1.3  MSc  Added CMSIS Driver API
+ **   - 2016-07-26  V1.4  MSc  Fixed error if CMSIS Driver API is disabled
  **
  *****************************************************************************/
 
