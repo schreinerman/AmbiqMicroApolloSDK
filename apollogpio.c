@@ -40,7 +40,6 @@ so agrees to indemnify Fujitsu against all liability.
  **   - 2017-04-04  V1.0  MSc  First Version
  **   - 2017-04-13  V1.1  MSc  IRQs added, Smaller macro bug fixes
  **   - 2017-06-26  V1.2  MSc  Read pin added
- **   - 2017-07-26  V1.3  MSc  Fixed input setting
  **
  *****************************************************************************/
 #define __APOLLOGPIO_C__
@@ -202,9 +201,9 @@ boolean_t ApolloGpio_IrqExecute(uint32_t pin)
     {
         if ((GPIO->INT1STAT & (1 << (pin - 32))) != 0)
         {
-            if (apfnCallbacks[pin-32] != NULL)
+            if (apfnCallbacks[pin] != NULL)
             {
-                apfnCallbacks[pin-32](pin);
+                apfnCallbacks[pin](pin);
             }
             GPIO->INT1CLR |= (1 << (pin-32));
             return TRUE;
@@ -227,6 +226,7 @@ boolean_t ApolloGpio_IrqExecute(uint32_t pin)
  ******************************************************************************/
 void ApolloGpio_RegisterIrq(uint32_t pin, en_apollogpio_edgedetect_t enMode, pfn_apollogpio_callback_t pfnCallback)
 {
+    uint32_t u32Status;
     if (pin < 32)
     {
         GPIO->INT0EN &= ~(1 << pin);
@@ -234,7 +234,7 @@ void ApolloGpio_RegisterIrq(uint32_t pin, en_apollogpio_edgedetect_t enMode, pfn
     {
         GPIO->INT1EN &= ~(1 << (pin - 32));
     }
-    
+    apfnCallbacks[pin] = pfnCallback;
     GPIO->PADKEY = 0x00000073;
     switch(enMode)
     {
@@ -247,14 +247,19 @@ void ApolloGpio_RegisterIrq(uint32_t pin, en_apollogpio_edgedetect_t enMode, pfn
 
     }
     GPIO->PADKEY = 0x00000000;
-    
+ 
     if (pin < 32)
     {
+        u32Status = (GPIO->INT0STAT & (1 << pin));
+        GPIO->INT0CLR = u32Status;
         GPIO->INT0EN |= (1 << pin);
     } else
     {
+        u32Status = (GPIO->INT1STAT & (1 << (pin - 32)));
+        GPIO->INT1CLR = u32Status;
         GPIO->INT1EN |= (1 << (pin - 32));
     }
+    
 }
 
 /**
@@ -267,7 +272,17 @@ void ApolloGpio_RegisterIrq(uint32_t pin, en_apollogpio_edgedetect_t enMode, pfn
  ** \param bOnOff TRUE to set a logical high, FALSE for a logical FALSE
  **
  ******************************************************************************/
-void ApolloGpio_GpioSet(uint32_t pin, boolean_t bOnOff)
+#if defined (__CC_ARM)
+  __inline void ApolloGpio_GpioSet(uint32_t pin, boolean_t bOnOff)
+#elif defined (__ICCARM__)
+  inline void ApolloGpio_GpioSet(uint32_t pin, boolean_t bOnOff)
+#elif defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
+  __inline void ApolloGpio_GpioSet(uint32_t pin, boolean_t bOnOff)
+#elif defined (__GNUC__)
+  inline void ApolloGpio_GpioSet(uint32_t pin, boolean_t bOnOff)
+#else
+  void ApolloGpio_GpioSet(uint32_t pin, boolean_t bOnOff)
+#endif
 {
     if (bOnOff)
     {

@@ -160,7 +160,7 @@ static stc_apolloiom_intern_data_t* GetInternDataPtr(IOMSTR0_Type* pstcIf)
 ******************************************************************************/
 static uint32_t DataToFifo(IOMSTR0_Type* pstcHandle, uint8_t* pu8Data, uint32_t u32NumBytes)
 {
-    uint32_t i;
+    uint32_t i,j;
     uint32_t u32Tmp;
     if (pstcHandle == NULL) return ErrorInvalidParameter;
     
@@ -188,6 +188,10 @@ static uint32_t DataToFifo(IOMSTR0_Type* pstcHandle, uint8_t* pu8Data, uint32_t 
             // Write the word to the FIFO.
             //
             u32Tmp = 0;
+            /*for(j = 0; j < 4;j++)
+            {
+                ((uint8_t*)&u32Tmp)[j] = pu8Data[i*4 + j];
+            }*/
             memcpy(&u32Tmp,&pu8Data[i*4],((u32NumBytes - i*4) <= 4 ? (u32NumBytes - i*4) : 4)); 
             pstcHandle->FIFO = u32Tmp;
         }
@@ -613,6 +617,10 @@ en_result_t ApolloIOM_Configure(IOMSTR0_Type* pstcInstance, const stc_apolloiom_
             u32Config |= (2 << IOMSTR0_CFG_STARTRD_Pos);
         }
     #endif	
+    
+        
+    //u32Config |= 0x8;
+    
     pstcInstance->CFG = u32Config;
     
     pstcInstance->FIFOTHR = (pstcConfig->u8WriteThreshold << IOMSTR0_FIFOTHR_FIFOWTHR_Pos) | (pstcConfig->u8ReadThreshold << IOMSTR0_FIFOTHR_FIFORTHR_Pos);
@@ -725,7 +733,7 @@ en_result_t ApolloIom_I2cCommand(IOMSTR0_Type* pstcHandle, uint32_t u32Operation
     // parameters.
     //
     u32Command |= u32Options & 0x5C00FF00;
-    
+
     //
     // Write the complete command word to the IOM command register.
     //
@@ -735,7 +743,134 @@ en_result_t ApolloIom_I2cCommand(IOMSTR0_Type* pstcHandle, uint32_t u32Operation
 }
 
 
+/**
+******************************************************************************
+** \brief  Write data via SPI polled
+**
+** \param pstcHandle      IOM handle: IOMSTR0 or IOMSTR1 for Apollo, IOMSTR1..5 for Apollo 2
+**
+** \param u32ChipSelect   Chipselect number
+**
+** \param pu32Data        Data
+**
+** \param u32NumBytes     Data size in bytes
+**
+** \param u32Options      Options: AM_HAL_IOM_CS_LOW, AM_HAL_IOM_LSB_FIRST, AM_HAL_IOM_RAW, AM_HAL_IOM_OFFSET(n)   
+**
+** \return                bytes written (max. 64 bytes of fifo size)
+******************************************************************************/
+en_result_t ApolloIom_SpiWritePolled(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesWritten, uint32_t u32Options)
+{
+    uint32_t u32Bw = 0;
+    uint32_t u32Pos = 0;
+    uint32_t u32NullCounter = 0;
+    while(u32Pos < u32NumBytes)
+    {
+        ApolloIom_SpiWrite(pstcHandle,u32ChipSelect,&pu8Data[u32Pos],(u32NumBytes - u32Pos),&u32Bw,u32Options);
+        if (u32Bw == 0) u32NullCounter++;
+        if (u32NullCounter > 100) return Error;
+        u32Pos += u32Bw;
+    }
+    if (pu32BytesWritten != NULL) *pu32BytesWritten = u32Pos;
+    return Ok;
+}
 
+
+/**
+******************************************************************************
+** \brief  Read-Write data via SPI
+**
+** \param pstcHandle      IOM handle: IOMSTR0 or IOMSTR1 for Apollo, IOMSTR1..5 for Apollo 2
+**
+** \param u32ChipSelect   Chipselect number
+**
+** \param pu8DataOut      Data out
+**
+** \param pu8DataIn      Data in
+**
+** \param u32NumBytes     Data size in bytes
+**
+** \param u32Options      Options: AM_HAL_IOM_CS_LOW, AM_HAL_IOM_LSB_FIRST, AM_HAL_IOM_RAW, AM_HAL_IOM_OFFSET(n)   
+**
+** \return                bytes written (max. 64 bytes of fifo size)
+******************************************************************************/
+en_result_t ApolloIom_SpiReadWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t* pu8DataOut, uint8_t* pu8DataIn, uint32_t u32NumBytes, uint32_t* pu32BytesTransferred, uint32_t u32Options)
+{
+    uint32_t tmp;
+    uint32_t u32ReadLen;
+    uint32_t _u32NumBytes = u32NumBytes;
+    volatile uint32_t u32Timeout;
+    
+    if (pu32BytesTransferred == NULL) pu32BytesTransferred = &tmp;
+    
+    if (pstcHandle == NULL) return ErrorInvalidParameter;
+    
+    //Poll for IOM had completed the operation
+    SystemCoreClockUpdate();
+    u32Timeout = SystemCoreClock;
+    while(u32Timeout > 0)
+    {
+        u32Timeout--;
+        if (pstcHandle->STATUS_b.IDLEST == 1) break;
+    }
+    if (u32Timeout == 0) 
+    {
+        return ErrorTimeout;
+    }
+    
+    u32NumBytes = (u32NumBytes <= MAX_FIFO_SIZE ? u32NumBytes : MAX_FIFO_SIZE);
+    
+    if (u32NumBytes >= pstcHandle->FIFOPTR_b.FIFOREM)
+    {
+        return Error; //The fifo couldn't fit the requested number of bytes
+    }
+    
+    u32NumBytes = DataToFifo(pstcHandle,pu8DataOut,u32NumBytes);
+    /*
+    //
+    // Loop over the words in the array until we have the correct number of
+    // bytes.
+    //
+    for(i = 0;(4*i) < u32NumBytes;i++)
+    {
+        //
+        // Write the word to the FIFO.
+        //
+        pstcHandle->FIFO = pu32Data[i];
+    }*/
+    
+    
+    ApolloIom_SpiCommand(pstcHandle,AM_HAL_IOM_RAW_WRITE,u32ChipSelect,u32NumBytes,u32Options);
+    u32Timeout = SystemCoreClock;
+    while(u32Timeout > 0)
+    {
+        u32Timeout--;
+        if (pstcHandle->STATUS_b.IDLEST != 1) break;
+    }
+    if (u32Timeout == 0) 
+    {
+        return ErrorTimeout;
+    }
+    ApolloIom_SpiCommand(pstcHandle,AM_HAL_IOM_RAW_READ,u32ChipSelect,u32NumBytes,u32Options);
+    
+    
+    while(pstcHandle->STATUS_b.IDLEST == 0)
+    {
+        u32ReadLen = 0;
+        if (pstcHandle->FIFOPTR_b.FIFOSIZ == u32NumBytes) //Check to see how much data is in the IOM fifo.
+        {
+            u32ReadLen = u32NumBytes * 2;
+        } else if (pstcHandle->FIFOPTR_b.FIFOSIZ >= 4)
+        {
+            u32ReadLen = pstcHandle->FIFOPTR_b.FIFOSIZ / 4;
+            u32ReadLen = u32ReadLen * 4;
+        }
+        tmp = FifoToData(pstcHandle,pu8DataIn,u32ReadLen);
+        *pu32BytesTransferred += tmp;
+        pu8DataIn += tmp;
+    }
+    return Ok;
+}
 
 /**
 ******************************************************************************
@@ -770,7 +905,10 @@ en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,
         u32Timeout--;
         if (pstcHandle->STATUS_b.IDLEST == 1) break;
     }
-    if (u32Timeout == 0) return ErrorTimeout;
+    if (u32Timeout == 0) 
+    {
+        return ErrorTimeout;
+    }
     
     u32NumBytes = (u32NumBytes <= MAX_FIFO_SIZE ? u32NumBytes : MAX_FIFO_SIZE);
     

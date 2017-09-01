@@ -101,7 +101,7 @@ static stc_apolloctimer_timer_ab_t* GetTimerFromPin(int pin);
  ******************************************************************************/
 static stc_apolloctimer_timer_ab_t* GetTimerFromPin(int pin)
 {
-    #if defined(APOLLO_H) 
+    #if defined(APOLLO_H) ||  defined(APOLLO1_H) 
         switch(pin)
         {
             case PIN_GPIO12:
@@ -333,7 +333,7 @@ void ApolloCTimer_PwmInit(stc_apolloctimer_timer_ab_t* pstcHandle)
         pstcHandle->HANDLE->CTRL_b.TMRACLR = 1;         //clear timer
     
         pstcHandle->HANDLE->CTRL_b.TMRAPE = 1;          //enable output timer
-        #if defined(APOLLO_H)
+        #if defined(APOLLO_H) || defined(APOLLO1_H)
             pstcHandle->HANDLE->CTRL_b.TMRAIE = 1;          //enable IRQ timer
         #elif defined(APOLLO2_H)
             pstcHandle->HANDLE->CTRL_b.TMRAIE1 = 1;          //enable IRQ timer        
@@ -352,7 +352,7 @@ void ApolloCTimer_PwmInit(stc_apolloctimer_timer_ab_t* pstcHandle)
         pstcHandle->HANDLE->CTRL_b.TMRBCLR = 1;         //clear timer
     
         pstcHandle->HANDLE->CTRL_b.TMRBPE = 1;          //enable output timer
-        #if defined(APOLLO_H)
+        #if defined(APOLLO_H) || defined(APOLLO1_H)
             pstcHandle->HANDLE->CTRL_b.TMRBIE = 1;          //enable IRQ timer
         #elif defined(APOLLO2_H)
             pstcHandle->HANDLE->CTRL_b.TMRBIE1 = 1;          //enable IRQ timer        
@@ -384,7 +384,7 @@ void ApolloCTimer_PwmSetDutyByPin(int pin, float32_t f32Duty)
     stc_apolloctimer_timer_ab_t* pstcHandle;
     pstcHandle = GetTimerFromPin(pin);
     if (pstcHandle == NULL) return;
-    ApolloArduino_PwmSetDuty(pstcHandle,f32Duty);
+    ApolloCTimer_PwmSetDuty(pstcHandle,f32Duty);
 }
 #endif
 
@@ -407,7 +407,7 @@ void ApolloCTimer_PwmSetDuty(stc_apolloctimer_timer_ab_t* pstcHandle, float32_t 
     } else{
         if (pstcHandle->HANDLE->CTRL_b.TMRBEN == 0) return;
     }
-    #if defined(APOLLO_H)
+    #if defined(APOLLO_H) || defined(APOLLO1_H)
         if (pstcHandle == CTIMERA0)
         {
             CTIMER->INTCLR_b.CTMRA0INT = 1;
@@ -448,7 +448,12 @@ void ApolloCTimer_PwmSetDuty(stc_apolloctimer_timer_ab_t* pstcHandle, float32_t 
             CTIMER->INTCLR_b.CTMRB3INT = 1;
             while (CTIMER->INTSTAT_b.CTMRB3INT == 0) __NOP();
         }
-        pstcHandle->HANDLE->CMPRB_b.CMPR0B = (uint32_t)(f32Duty * (pstcHandle->HANDLE->CMPRB_b.CMPR0B - 2) + 1);
+        if (pstcHandle->enTimerAB == CTimerA)
+        {
+            pstcHandle->HANDLE->CMPRA_b.CMPR0A = (uint32_t)(f32Duty * (pstcHandle->HANDLE->CMPRA_b.CMPR1A - 2) + 1);
+        } else{
+            pstcHandle->HANDLE->CMPRB_b.CMPR0B = (uint32_t)(f32Duty * (pstcHandle->HANDLE->CMPRB_b.CMPR1B - 2) + 1);
+        }
     #elif defined(APOLLO2_H)
         if (pstcHandle == CTIMERA0)
         {

@@ -31,19 +31,17 @@ so agrees to indemnify Fujitsu against all liability.
 
  ******************************************************************************/
 /******************************************************************************/
-/** \file ApolloGpio.h
+/** \file apollosysctrl.h
  **
  ** A detailed description is available at 
- ** @link ApolloGpioGroup Apollo GPIO description @endlink
+ ** @link apollosysctrlGroup Apollo 1 / 2 System Control description @endlink
  **
  ** History:
- **   - 2017-04-04  V1.0  MSc  First Version
- **   - 2017-04-13  V1.1  MSc  IRQs added, Smaller macro bug fixes
- **   - 2017-06-26  V1.2  MSc  Read pin added
- **
+ **   - 2017-09-01  V1.0  MSc  First Version
+
  *****************************************************************************/
-#ifndef __APOLLOGPIO_H__
-#define __APOLLOGPIO_H__
+#ifndef __APOLLOSYSCTRL_H__
+#define __APOLLOSYSCTRL_H__
 
 /* C binding of definitions if building with C++ compiler */
 #ifdef __cplusplus
@@ -53,9 +51,9 @@ extern "C"
 
 /**
  ******************************************************************************
- ** \defgroup ApolloGpioGroup Apollo GPIO
+ ** \defgroup apollosysctrlGroup Apollo 1 / 2 System Control
  **
- ** Provided functions of ApolloGpio:
+ ** Provided functions of apollosysctrl:
  ** 
  **   
  ******************************************************************************/
@@ -63,10 +61,10 @@ extern "C"
 
 /**
  ******************************************************************************    
- ** \page apollogpio_module_includes Required includes in main application
+ ** \page apollosysctrl_module_includes Required includes in main application
  ** \brief Following includes are required
  ** @code   
- ** #include "apollogpio.h"   
+ ** #include "apollosysctrl.h"   
  ** @endcode
  **
  ******************************************************************************/
@@ -77,101 +75,53 @@ extern "C"
 
 #include "mcu.h"
 #include "base_types.h"
-
 #if (APOLLOGPIO_ENABLED == 1)
-     
+#include "apollogpio.h"
+#endif
+    
 /*****************************************************************************/
 /* Global pre-processor symbols/macros ('#define')                            */
 /*****************************************************************************/
+#if defined(APOLLO_H) || defined(APOLLO1_H)
+    #define APOLLOSYSCTRL_24MHZ  0x00000000
+    #define APOLLOSYSCTRL_12MHZ  0x00000001
+    #define APOLLOSYSCTRL_8MHZ   0x00000002
+    #define APOLLOSYSCTRL_6MHZ   0x00000003
+    #define APOLLOSYSCTRL_4_8MHZ 0x00000004
+    #define APOLLOSYSCTRL_4MHZ   0x00000005
+    #define APOLLOSYSCTRL_3_4MHZ 0x00000006
+    #define APOLLOSYSCTRL_3MHZ   0x00000007
+#elif defined(APOLLO2_H)
+    #define APOLLOSYSCTRL_48MHZ  0x00000000
+    #define APOLLOSYSCTRL_24MHZ  0x00000001 
+#endif
 
-#define APOLLOGPIO_PADREG(n) *(volatile uint32_t*)(0x40010000 + (n/4) * 4)
-     
-#define APOLLOGPIO_CFG(n) *(volatile uint32_t*)(0x40010040 + (n/8) * 4)
-#define APOLLOGPIO_CFG_SET(n,val) APOLLOGPIO_CFG(n) |= val << (((n) % 8)*4)
-#define APOLLOGPIO_CFG_CLR(n,val) APOLLOGPIO_CFG(n) &= ~(val << (((n) % 8)*4))
-#define APOLLOGPIO_CFG_ZERO(n) APOLLOGPIO_CFG(n) &= ~(0xF << (((n) % 8) * 4))
-#define APOLLOGPIO_CFG_GET(n,val) APOLLOGPIO_CFG(n) val >> (((n) % 8)*4)
-#define APOLLOGPIO_CFG_WRITE(n,mask,val) APOLLOGPIO_CFG_CLR(n,mask); APOLLOGPIO_CFG_SET(n,val)  
-     
-#define APOLLOGPIO_PADREG_SET(n,val) APOLLOGPIO_PADREG(n) |= val << (((n) % 4)*8)
-#define APOLLOGPIO_PADREG_CLR(n,val) APOLLOGPIO_PADREG(n) &= ~(val << (((n) % 4)*8))
-#define APOLLOGPIO_PADREG_ZERO(n) APOLLOGPIO_PADREG(n) &= ~(0xFF << (((n) % 4)*8))
-#define APOLLOGPIO_PADREG_WRITE(n,mask,val) APOLLOGPIO_PADREG_CLR(n,mask); APOLLOGPIO_PADREG_SET(n,val) 
-     
-#define SET_OUTPUT_GPIO(n) APOLLOGPIO_PADREG_SET(n,(0x3 << 3)); APOLLOGPIO_CFG_SET(n,(0x01 << 1));
-
-#define	PIN_GPIO0	0
-#define	PIN_GPIO1	1
-#define	PIN_GPIO2	2
-#define	PIN_GPIO3	3
-#define	PIN_GPIO4	4
-#define	PIN_GPIO5	5
-#define	PIN_GPIO6	6
-#define	PIN_GPIO7	7
-#define	PIN_GPIO8	8
-#define	PIN_GPIO9	9
-#define	PIN_GPIO10	10
-#define	PIN_GPIO11	11
-#define	PIN_GPIO12	12
-#define	PIN_GPIO13	13
-#define	PIN_GPIO14	14
-#define	PIN_GPIO15	15
-#define	PIN_GPIO16	16
-#define	PIN_GPIO17	17
-#define	PIN_GPIO18	18
-#define	PIN_GPIO19	19
-#define	PIN_GPIO20	20
-#define	PIN_GPIO21	21
-#define	PIN_GPIO22	22
-#define	PIN_GPIO23	23
-#define	PIN_GPIO24	24
-#define	PIN_GPIO25	25
-#define	PIN_GPIO26	26
-#define	PIN_GPIO27	27
-#define	PIN_GPIO28	28
-#define	PIN_GPIO29	29
-#define	PIN_GPIO30	30
-#define	PIN_GPIO31	31
-#define	PIN_GPIO32	32
-#define	PIN_GPIO33	33
-#define	PIN_GPIO34	34
-#define	PIN_GPIO35	35
-#define	PIN_GPIO36	36
-#define	PIN_GPIO37	37
-#define	PIN_GPIO38	38
-#define	PIN_GPIO39	39
-#define	PIN_GPIO40	40
-#define	PIN_GPIO41	41
-#define	PIN_GPIO42	42
-#define	PIN_GPIO43	43
-#define	PIN_GPIO44	44
-#define	PIN_GPIO45	45
-#define	PIN_GPIO46	46
-#define	PIN_GPIO47	47
-#define	PIN_GPIO48	48
-#define	PIN_GPIO49	49
-
-#define SET_GPIO(n)       (n < 32) ? (GPIO->WTSA = (1 << n) & 0xFFFFFFFF) : (GPIO->WTSB = (1 << (n - 32)) & 0xFFFFFFFF)
-#define CLEAR_GPIO(n)     (n < 32) ? (GPIO->WTCA = (1 << n) & 0xFFFFFFFF) : (GPIO->WTCB = (1 << (n - 32)) & 0xFFFFFFFF)
-    
 /*****************************************************************************/
 /* Global type definitions ('typedef')                                        */
 /*****************************************************************************/
-typedef enum en_apollogpio_mode
-{
-    GpioOutputDisabled = 0,
-    GpioPushPull = 1,
-    GpioOpenDrain = 2,
-    GpioTriState = 3
-} en_apollogpio_mode_t;
 
-typedef void (*pfn_apollogpio_callback_t)(uint8_t pin);
-
-typedef enum en_apollogpio_edgedetect
+typedef enum en_apollosysctrl_freq
 {
-    GpioFallingEdge = 1,
-    GpioRisingEdge = 0,
-} en_apollogpio_edgedetect_t;
+#if defined(APOLLO2_H)
+    ApolloSysCtrl28MHz = APOLLOSYSCTRL_48MHZ,
+#endif
+    ApolloSysCtrl24MHz = APOLLOSYSCTRL_24MHZ,
+#if defined(APOLLO_H) || defined(APOLLO1_H)
+    ApolloSysCtrl12MHz = APOLLOSYSCTRL_12MHZ,
+    ApolloSysCtrl8MHz = APOLLOSYSCTRL_8MHZ,
+    ApolloSysCtrl6MHz = APOLLOSYSCTRL_6MHZ,
+    ApolloSysCtrl4_8MHz = APOLLOSYSCTRL_4_8MHZ,
+    ApolloSysCtrl4MHz = APOLLOSYSCTRL_4MHZ,
+    ApolloSysCtrl3_4MHz = APOLLOSYSCTRL_3_4MHZ,
+    ApolloSysCtrl3MHz = APOLLOSYSCTRL_3MHZ
+#endif
+} en_apollosysctrl_freq_t;
+
+typedef enum en_apollosysctrl_rtcclk
+{
+    ApolloSysCtrlRtcXt,
+    ApolloSysCtrlRtcLfrc
+} en_apollosysctrl_rtcclk_t;
 
 /*****************************************************************************/
 /* Global variable declarations ('extern', definition in C source)           */
@@ -183,29 +133,27 @@ typedef enum en_apollogpio_edgedetect
 /* Global function prototypes ('extern', definition in C source)             */
 /*****************************************************************************/
 
-void ApolloGpio_GpioSet(uint32_t pin, boolean_t bOnOff);
-void ApolloGpio_GpioPullupEnable(uint32_t pin, boolean_t bEnable);
-void ApolloGpio_GpioInputEnable(uint32_t pin, boolean_t bEnable);
-void ApolloGpio_GpioStrengthEnable(uint32_t pin, boolean_t bEnable);
-void ApolloGpio_GpioOutputConfiguration(uint32_t pin, en_apollogpio_mode_t enMode);
-void ApolloGpio_GpioOutputEnable(uint32_t pin, boolean_t bEnable);
-void ApolloGpio_GpioSelectFunction(uint32_t pin, uint8_t u8Function);
-boolean_t ApolloGpio_IrqIsEnabled(uint32_t pin);
-boolean_t ApolloGpio_IrqIsPending(uint32_t pin);
-boolean_t ApolloGpio_IrqExecute(uint32_t pin);
-void ApolloGpio_RegisterIrq(uint32_t pin, en_apollogpio_edgedetect_t enMode, pfn_apollogpio_callback_t pfnCallback);
-boolean_t ApolloGpio_GpioGet(uint32_t pin);
-void ApolloGpio_GpioSetHighSwitch(uint32_t pin, boolean_t bOnOff);
-
-#endif /* (APOLLOGPIO_ENABLED == 1) */
+void ApolloSysCtrl_SetClk(en_apollosysctrl_freq_t enFreq);
+en_result_t ApolloSysCtrl_EnableBucks(boolean_t bOnOff);
+boolean_t ApolloSysCtrl_BucksAreEnabled(void);
+uint32_t ApolloSysCtrl_GetClk(void);
+boolean_t ApolloSysCtrl_XtFaiture(void);
+void ApolloSysCtrl_AutoCalFailIrqEnable(boolean_t bOnOff);
+void ApolloSysCtrl_AutoCalCompleteIrqEnable(boolean_t bOnOff);
+void ApolloSysCtrl_OscXtFailIrqEnable(boolean_t bOnOff);
+void ApolloSysCtrl_RtcAlarmIrqEnable(boolean_t bOnOff);
+void ApolloSysCtrl_XtEnable(boolean_t bOnOff);
+void ApolloSysCtrl_LfrcEnable(boolean_t bOnOff);
+void ApolloSysCtrl_XtSwitchToLfrcOnFaitureEnable(boolean_t bOnOff);
+void ApolloSysCtrl_RtcClockInput(en_apollosysctrl_rtcclk_t enClockSrc);
 
 #ifdef __cplusplus
 }
 #endif
 
-//@} // ApolloGpioGroup
+//@} // apollosysctrlGroup
 
-#endif /*__APOLLOGPIO_H__*/
+#endif /*__APOLLOSYSCTRL_H__*/
 
 /******************************************************************************/
 /* EOF (not truncated)                                                        */

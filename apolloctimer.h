@@ -125,7 +125,29 @@ extern "C"
 /* Global type definitions ('typedef')                                        */
 /*****************************************************************************/
 
-     #if defined(APOLLO2_H)
+/* ========================================  Start of section using anonymous unions  ======================================== */
+#if defined (__CC_ARM)
+  #pragma push
+  #pragma anon_unions
+#elif defined (__ICCARM__)
+  #pragma language=extended
+#elif defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
+  #pragma clang diagnostic push
+  #pragma clang diagnostic ignored "-Wc11-extensions"
+  #pragma clang diagnostic ignored "-Wreserved-id-macro"
+#elif defined (__GNUC__)
+  /* anonymous unions are enabled by default */
+#elif defined (__TMS470__)
+  /* anonymous unions are enabled by default */
+#elif defined (__TASKING__)
+  #pragma warning 586
+#elif defined (__CSMC__)
+  /* anonymous unions are enabled by default */
+#else
+  #warning Not supported compiler type
+#endif
+
+#if defined(APOLLO2_H)
 typedef struct stc_apolloctimer_timer
 {
   union {
@@ -185,6 +207,81 @@ typedef struct stc_apolloctimer_timer
     } CTRL_b;                                      /*!< BitSize                                                               */
   };
 } stc_apolloctimer_timer_t;
+#elif defined(APOLLO1_H) || defined(APOLLO_H)
+typedef struct stc_apolloctimer_timer {                             
+  
+  union {
+    __IOM uint32_t TMR;                        /*!< (@ 0x00000000) Counter/Timer Register                                     */
+    
+    struct {
+      __IOM uint32_t CTTMRA    : 16;           /*!< (@ 0x00000000) Counter/Timer A0.                                          */
+      __IOM uint32_t CTTMRB    : 16;           /*!< (@ 0x00000010) Counter/Timer B0.                                          */
+    } TMR_b;
+  } ;
+  
+  union {
+    __IOM uint32_t CMPRA;                      /*!< (@ 0x00000004) Counter/Timer A0 Compare Registers                         */
+    
+    struct {
+      __IOM uint32_t CMPR0A    : 16;           /*!< (@ 0x00000000) Counter/Timer A0 Compare Register 0. Holds the
+                                                                    lower limit for timer half A.                              */
+      __IOM uint32_t CMPR1A    : 16;           /*!< (@ 0x00000010) Counter/Timer A0 Compare Register 1. Holds the
+                                                                    upper limit for timer half A.                              */
+    } CMPRA_b;
+  } ;
+  
+  union {
+    __IOM uint32_t CMPRB;                      /*!< (@ 0x00000008) Counter/Timer B0 Compare Registers                         */
+    
+    struct {
+      __IOM uint32_t CMPR0B    : 16;           /*!< (@ 0x00000000) Counter/Timer B0 Compare Register 0. Holds the
+                                                                    lower limit for timer half B.                              */
+      __IOM uint32_t CMPR1B    : 16;           /*!< (@ 0x00000010) Counter/Timer B0 Compare Register 1. Holds the
+                                                                    upper limit for timer half B.                              */
+    } CMPRB_b;
+  } ;
+  
+  union {
+    __IOM uint32_t CTRL;                       /*!< (@ 0x0000000C) Counter/Timer Control                                      */
+    
+    struct {
+      __IOM uint32_t TMRAEN    : 1;            /*!< (@ 0x00000000) Counter/Timer A0 Enable bit.                               */
+      __IOM uint32_t TMRACLK   : 5;            /*!< (@ 0x00000001) Counter/Timer A0 Clock Select.                             */
+      __IOM uint32_t TMRAFN    : 3;            /*!< (@ 0x00000006) Counter/Timer A0 Function Select.                          */
+      __IOM uint32_t TMRAIE    : 1;            /*!< (@ 0x00000009) Counter/Timer A0 Interrupt Enable bit.                     */
+      __IOM uint32_t TMRAPE    : 1;            /*!< (@ 0x0000000A) Counter/Timer A0 Output Enable bit.                        */
+      __IOM uint32_t TMRACLR   : 1;            /*!< (@ 0x0000000B) Counter/Timer A0 Clear bit.                                */
+      __IOM uint32_t TMRAPOL   : 1;            /*!< (@ 0x0000000C) Counter/Timer A0 output polarity.                          */
+      __IM  uint32_t            : 3;
+      __IOM uint32_t TMRBEN    : 1;            /*!< (@ 0x00000010) Counter/Timer B0 Enable bit.                               */
+      __IOM uint32_t TMRBCLK   : 5;            /*!< (@ 0x00000011) Counter/Timer B0 Clock Select.                             */
+      __IOM uint32_t TMRBFN    : 3;            /*!< (@ 0x00000016) Counter/Timer B0 Function Select.                          */
+      __IOM uint32_t TMRBIE    : 1;            /*!< (@ 0x00000019) Counter/Timer B0 Interrupt Enable bit.                     */
+      __IOM uint32_t TMRBPE    : 1;            /*!< (@ 0x0000001A) Counter/Timer B0 Output Enable bit.                        */
+      __IOM uint32_t TMRBCLR   : 1;            /*!< (@ 0x0000001B) Counter/Timer B0 Clear bit.                                */
+      __IOM uint32_t TMRBPOL   : 1;            /*!< (@ 0x0000001C) Counter/Timer B0 output polarity.                          */
+      __IM  uint32_t            : 2;
+      __IOM uint32_t CTLINK    : 1;            /*!< (@ 0x0000001F) Counter/Timer A0/B0 Link bit.                              */
+    } CTRL_b;
+  };
+} stc_apolloctimer_timer_t;
+#endif
+
+/* =========================================  End of section using anonymous unions  ========================================= */
+#if defined (__CC_ARM)
+  #pragma pop
+#elif defined (__ICCARM__)
+  /* leave anonymous unions enabled */
+#elif (__ARMCC_VERSION >= 6010050)
+  #pragma clang diagnostic pop
+#elif defined (__GNUC__)
+  /* anonymous unions are enabled by default */
+#elif defined (__TMS470__)
+  /* anonymous unions are enabled by default */
+#elif defined (__TASKING__)
+  #pragma warning restore
+#elif defined (__CSMC__)
+  /* anonymous unions are enabled by default */
 #endif
 
 typedef enum en_apolloctimer_ab
