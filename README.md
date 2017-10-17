@@ -1,5 +1,5 @@
-# AmbiqMicroApolloSDK
-Alternative SDK for Ambiq Micro Apollo 1 and 2 MCU
+# AmbiqMicroApolloSDK (beta)
+Alternative SDK for Ambiq Micro Apollo 1 and 2 MCU from Fujitsu (beta)
 
 The alternative SDK for Ambiq Micro Apollo 1 and 2 MCUs is offering CMSIS compatible implementations. In the first step the API is not yet CMSIS driver API compatible, but this feature will be added as next step.
 
