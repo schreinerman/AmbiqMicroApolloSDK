@@ -46,10 +46,11 @@
  **
  ** History:
  **   - 2016-11-26  V1.0  MSc  First Version
- **   - 2016-04-13  V1.1  MSc  Added IRQs and callbacks
- **   - 2016-05-16  V1.2  MSc  Added Apollo 2 support
- **   - 2016-06-26  V1.3  MSc  Added CMSIS Driver API
- **   - 2016-07-26  V1.4  MSc  Fixed error if CMSIS Driver API is disabled
+ **   - 2017-04-13  V1.1  MSc  Added IRQs and callbacks
+ **   - 2017-05-16  V1.2  MSc  Added Apollo 2 support
+ **   - 2017-06-26  V1.3  MSc  Added CMSIS Driver API
+ **   - 2017-07-26  V1.4  MSc  Fixed error if CMSIS Driver API is disabled
+ **   - 2017-10-17  V1.5  MSc  Fixed for Apollo2 UARTEN in initialization
  **
  *****************************************************************************/
 

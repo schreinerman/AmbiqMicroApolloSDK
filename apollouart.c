@@ -1107,10 +1107,21 @@ void ApolloUart_Init(UART_Type* pstcUart,uint32_t u32Baudrate)
     //
     // Enable UART clock in CLKGEN
     //
-#if defined(APOLLO_H) || defined(APOLLO1_H)
+#if defined(APOLLO_H) || defined(APOLLO1_H) 
     CLKGEN->UARTEN_b.UARTEN = 1;        //enable UART clocking
 #endif
-    
+#if defined(APOLLO2_H)    
+    if (pstcUart == UART0)
+    {
+        CLKGEN->UARTEN_b.UART0EN = 1;        //enable UART clocking
+        PWRCTRL->DEVICEEN |= (1 << PWRCTRL_DEVICEEN_UART0_Pos);
+    }
+    if (pstcUart == UART1)
+    {
+        CLKGEN->UARTEN_b.UART1EN = 1;        //enable UART clocking
+        PWRCTRL->DEVICEEN |= (1 << PWRCTRL_DEVICEEN_UART1_Pos);
+    }
+#endif
     //
     // Enable clock / select clock...
     //
@@ -1132,8 +1143,11 @@ void ApolloUart_Init(UART_Type* pstcUart,uint32_t u32Baudrate)
     
     // initialize baudrate before all other settings, otherwise UART will not be initialized
     SystemCoreClockUpdate();
+#if defined(APOLLO_H) || defined(APOLLO1_H) 
     ConfigureBaudrate(pstcUart,u32Baudrate,SystemCoreClock);
-    
+#else    
+    ConfigureBaudrate(pstcUart,u32Baudrate,SystemCoreClock/2);
+#endif
     // initialize line coding...
     pstcUart->LCRH = 0;
     pstcUart->LCRH_b.WLEN = 3;                //3 = 8 data bits (2..0 = 7..5 data bits)
