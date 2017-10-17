@@ -38,6 +38,7 @@ so agrees to indemnify Fujitsu against all liability.
  **
  ** History:
  **   - 2017-09-01  V1.0  MSc  First Version
+ **   - 2017-10-17  V1.1  MSc  Fixed ApolloSysCtrl48MHz setting 
 
  *****************************************************************************/
 #ifndef __APOLLOSYSCTRL_H__
@@ -103,7 +104,7 @@ extern "C"
 typedef enum en_apollosysctrl_freq
 {
 #if defined(APOLLO2_H)
-    ApolloSysCtrl28MHz = APOLLOSYSCTRL_48MHZ,
+    ApolloSysCtrl48MHz = APOLLOSYSCTRL_48MHZ,
 #endif
     ApolloSysCtrl24MHz = APOLLOSYSCTRL_24MHZ,
 #if defined(APOLLO_H) || defined(APOLLO1_H)
