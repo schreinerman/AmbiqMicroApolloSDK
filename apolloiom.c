@@ -39,6 +39,7 @@ so agrees to indemnify Fujitsu against all liability.
 ** History:
 **   - 2017-01-31  V1.0  MSc  First Version
 **   - 2017-04-13  V1.1  MSc  Added one-byte transfer
+**   - 2017-10-17  V1.2  MSc  Added register based transfers
 **
 *****************************************************************************/
 #define __APOLLOIOM_C__
@@ -231,7 +232,15 @@ static uint32_t FifoToData(IOMSTR0_Type* pstcHandle, uint8_t* pu8Data, uint32_t 
             //
             // Write the word to the FIFO.
             //
-            ((uint32_t*)pu8Data)[i] = pstcHandle->FIFO;
+            if ((u32NumBytes - (4*i)) < 4)
+            {
+                u32Tmp = pstcHandle->FIFO;
+                memcpy(&pu8Data[i*4],&u32Tmp,((u32NumBytes - i*4) <= 4 ? (u32NumBytes - i*4) : 4));
+            }
+            else
+            {
+                ((uint32_t*)pu8Data)[i] = pstcHandle->FIFO;
+            }
         }
     }
     else
@@ -373,7 +382,7 @@ en_result_t ApolloIOM_Disable(IOMSTR0_Type* pstcInstance)
     
     //Poll for IOM had completed the operation
     SystemCoreClockUpdate();
-    u32Timeout = SystemCoreClock;
+    u32Timeout = SystemCoreClock/5;
     while(u32Timeout > 0)
     {
         u32Timeout--;
@@ -617,10 +626,6 @@ en_result_t ApolloIOM_Configure(IOMSTR0_Type* pstcInstance, const stc_apolloiom_
             u32Config |= (2 << IOMSTR0_CFG_STARTRD_Pos);
         }
     #endif	
-    
-        
-    //u32Config |= 0x8;
-    
     pstcInstance->CFG = u32Config;
     
     pstcInstance->FIFOTHR = (pstcConfig->u8WriteThreshold << IOMSTR0_FIFOTHR_FIFOWTHR_Pos) | (pstcConfig->u8ReadThreshold << IOMSTR0_FIFOTHR_FIFORTHR_Pos);
@@ -733,7 +738,7 @@ en_result_t ApolloIom_I2cCommand(IOMSTR0_Type* pstcHandle, uint32_t u32Operation
     // parameters.
     //
     u32Command |= u32Options & 0x5C00FF00;
-
+    
     //
     // Write the complete command word to the IOM command register.
     //
@@ -778,102 +783,6 @@ en_result_t ApolloIom_SpiWritePolled(IOMSTR0_Type* pstcHandle, uint32_t u32ChipS
 
 /**
 ******************************************************************************
-** \brief  Read-Write data via SPI
-**
-** \param pstcHandle      IOM handle: IOMSTR0 or IOMSTR1 for Apollo, IOMSTR1..5 for Apollo 2
-**
-** \param u32ChipSelect   Chipselect number
-**
-** \param pu8DataOut      Data out
-**
-** \param pu8DataIn      Data in
-**
-** \param u32NumBytes     Data size in bytes
-**
-** \param u32Options      Options: AM_HAL_IOM_CS_LOW, AM_HAL_IOM_LSB_FIRST, AM_HAL_IOM_RAW, AM_HAL_IOM_OFFSET(n)   
-**
-** \return                bytes written (max. 64 bytes of fifo size)
-******************************************************************************/
-en_result_t ApolloIom_SpiReadWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t* pu8DataOut, uint8_t* pu8DataIn, uint32_t u32NumBytes, uint32_t* pu32BytesTransferred, uint32_t u32Options)
-{
-    uint32_t tmp;
-    uint32_t u32ReadLen;
-    uint32_t _u32NumBytes = u32NumBytes;
-    volatile uint32_t u32Timeout;
-    
-    if (pu32BytesTransferred == NULL) pu32BytesTransferred = &tmp;
-    
-    if (pstcHandle == NULL) return ErrorInvalidParameter;
-    
-    //Poll for IOM had completed the operation
-    SystemCoreClockUpdate();
-    u32Timeout = SystemCoreClock;
-    while(u32Timeout > 0)
-    {
-        u32Timeout--;
-        if (pstcHandle->STATUS_b.IDLEST == 1) break;
-    }
-    if (u32Timeout == 0) 
-    {
-        return ErrorTimeout;
-    }
-    
-    u32NumBytes = (u32NumBytes <= MAX_FIFO_SIZE ? u32NumBytes : MAX_FIFO_SIZE);
-    
-    if (u32NumBytes >= pstcHandle->FIFOPTR_b.FIFOREM)
-    {
-        return Error; //The fifo couldn't fit the requested number of bytes
-    }
-    
-    u32NumBytes = DataToFifo(pstcHandle,pu8DataOut,u32NumBytes);
-    /*
-    //
-    // Loop over the words in the array until we have the correct number of
-    // bytes.
-    //
-    for(i = 0;(4*i) < u32NumBytes;i++)
-    {
-        //
-        // Write the word to the FIFO.
-        //
-        pstcHandle->FIFO = pu32Data[i];
-    }*/
-    
-    
-    ApolloIom_SpiCommand(pstcHandle,AM_HAL_IOM_RAW_WRITE,u32ChipSelect,u32NumBytes,u32Options);
-    u32Timeout = SystemCoreClock;
-    while(u32Timeout > 0)
-    {
-        u32Timeout--;
-        if (pstcHandle->STATUS_b.IDLEST != 1) break;
-    }
-    if (u32Timeout == 0) 
-    {
-        return ErrorTimeout;
-    }
-    ApolloIom_SpiCommand(pstcHandle,AM_HAL_IOM_RAW_READ,u32ChipSelect,u32NumBytes,u32Options);
-    
-    
-    while(pstcHandle->STATUS_b.IDLEST == 0)
-    {
-        u32ReadLen = 0;
-        if (pstcHandle->FIFOPTR_b.FIFOSIZ == u32NumBytes) //Check to see how much data is in the IOM fifo.
-        {
-            u32ReadLen = u32NumBytes * 2;
-        } else if (pstcHandle->FIFOPTR_b.FIFOSIZ >= 4)
-        {
-            u32ReadLen = pstcHandle->FIFOPTR_b.FIFOSIZ / 4;
-            u32ReadLen = u32ReadLen * 4;
-        }
-        tmp = FifoToData(pstcHandle,pu8DataIn,u32ReadLen);
-        *pu32BytesTransferred += tmp;
-        pu8DataIn += tmp;
-    }
-    return Ok;
-}
-
-/**
-******************************************************************************
 ** \brief  Write data via SPI
 **
 ** \param pstcHandle      IOM handle: IOMSTR0 or IOMSTR1 for Apollo, IOMSTR1..5 for Apollo 2
@@ -899,7 +808,7 @@ en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,
     
     //Poll for IOM had completed the operation
     SystemCoreClockUpdate();
-    u32Timeout = SystemCoreClock;
+    u32Timeout = SystemCoreClock/5;
     while(u32Timeout > 0)
     {
         u32Timeout--;
@@ -935,7 +844,22 @@ en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,
     return Ok;
 }
 
-
+/**
+******************************************************************************
+** \brief  Write data via I2C
+**
+** \param pstcHandle      IOM handle: IOMSTR0 or IOMSTR1 for Apollo, IOMSTR1..5 for Apollo 2
+**
+** \param u32BusAddress   Bus Address
+**
+** \param pu32Data        Data
+**
+** \param u32NumBytes     Data size in bytes
+**
+** \param u32Options      Options: AM_HAL_IOM_LSB_FIRST, AM_HAL_IOM_RAW, AM_HAL_IOM_OFFSET(n)   
+**
+** \return                bytes written
+******************************************************************************/
 en_result_t ApolloIom_I2cWrite(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesWritten, uint32_t u32Options)
 {
     uint32_t tmp;
@@ -947,7 +871,7 @@ en_result_t ApolloIom_I2cWrite(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,
     
     //Poll for IOM had completed the operation
     SystemCoreClockUpdate();
-    u32Timeout = SystemCoreClock;
+    u32Timeout = SystemCoreClock/5;
     while(u32Timeout > 0)
     {
         u32Timeout--;
@@ -968,6 +892,163 @@ en_result_t ApolloIom_I2cWrite(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,
     *pu32BytesWritten = u32NumBytes;
     return Ok;
 }
+
+/**
+******************************************************************************
+** \brief  Read data via I2C
+**
+** \param pstcHandle      IOM handle: IOMSTR0 or IOMSTR1 for Apollo, IOMSTR1..5 for Apollo 2
+**
+** \param u32BusAddress   Bus Address
+**
+** \param pu32Data        Data
+**
+** \param u32NumBytes     Data size in bytes
+**
+** \param u32Options      Options: AM_HAL_IOM_LSB_FIRST, AM_HAL_IOM_RAW, AM_HAL_IOM_OFFSET(n)   
+**
+** \return                bytes read
+******************************************************************************/
+en_result_t ApolloIom_I2cRead(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesRead, uint32_t u32Options)
+{
+    uint32_t u32ReadLen = 0;
+    uint32_t tmp;
+    volatile uint32_t u32Timeout;
+    
+    if (pu32BytesRead == NULL) pu32BytesRead = &tmp;
+    
+    //Poll for IOM had completed the operation
+    SystemCoreClockUpdate();
+    u32Timeout = SystemCoreClock/5;
+    while(u32Timeout > 0)
+    {
+        u32Timeout--;
+        if (pstcHandle->STATUS_b.IDLEST == 1) break;
+    }
+    if (u32Timeout == 0) return ErrorTimeout;
+    
+    u32NumBytes = (u32NumBytes <= MAX_FIFO_SIZE ? u32NumBytes : MAX_FIFO_SIZE);
+    
+    ApolloIom_I2cCommand(pstcHandle,AM_HAL_IOM_READ,u32BusAddress,u32NumBytes,u32Options);
+    
+    while(pstcHandle->STATUS_b.IDLEST == 0)
+    {
+        u32ReadLen = 0;
+        if (pstcHandle->FIFOPTR_b.FIFOSIZ == u32NumBytes) //Check to see how much data is in the IOM fifo.
+        {
+            u32ReadLen = u32NumBytes;
+        } else if (pstcHandle->FIFOPTR_b.FIFOSIZ >= 4)
+        {
+            u32ReadLen = pstcHandle->FIFOPTR_b.FIFOSIZ / 4;
+            u32ReadLen = u32ReadLen * 4;
+        }
+        tmp = FifoToData(pstcHandle,pu8Data,u32ReadLen);
+        *pu32BytesRead += tmp;
+        pu8Data += tmp;
+    }
+    
+    return Ok;
+}
+
+
+/**
+******************************************************************************
+** \brief  Read register data via I2C
+**
+** \param pstcHandle      IOM handle: IOMSTR0 or IOMSTR1 for Apollo, IOMSTR1..5 for Apollo 2
+**
+** \param u32BusAddress   Bus Address
+**
+** \param u8Register      Register
+**
+** \param pu8Data         Data
+**
+** \param u32Length       Data length
+**
+** \return                Ok on success
+******************************************************************************/
+en_result_t ApolloIom_I2cReadRegister(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length)
+{
+    en_result_t res = Ok;
+    res = ApolloIom_I2cRead(pstcHandle,u32BusAddress,pu8Data,u32Length,NULL,AM_HAL_IOM_OFFSET(u8Register)); //| AM_HAL_IOM_RAW);
+    return res;
+}
+
+/**
+******************************************************************************
+** \brief  Write register data via I2C
+**
+** \param pstcHandle      IOM handle: IOMSTR0 or IOMSTR1 for Apollo, IOMSTR1..5 for Apollo 2
+**
+** \param u32BusAddress   Bus Address
+**
+** \param u8Register      Register
+**
+** \param pu8Data         Data
+**
+** \param u32Length       Data length
+**
+** \return                Ok on success
+******************************************************************************/
+en_result_t ApolloIom_I2cWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length)
+{
+    en_result_t res = Ok;
+    res = ApolloIom_I2cWrite(pstcHandle,u32BusAddress,pu8Data,u32Length,NULL,AM_HAL_IOM_OFFSET(u8Register));
+    return res;
+}
+
+/**
+******************************************************************************
+** \brief  Read register data via SPI
+**
+** \param pstcHandle      IOM handle: IOMSTR0 or IOMSTR1 for Apollo, IOMSTR1..5 for Apollo 2
+**
+** \param u32Chipselect   Chipselect
+**
+** \param u8Register      Register
+**
+** \param pu8Data         Data
+**
+** \param u32Length       Data length
+**
+** \return                Ok on success
+******************************************************************************/
+en_result_t ApolloIom_SpiReadRegister(IOMSTR0_Type* pstcHandle, uint32_t u32Chipselect,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length)
+{
+    en_result_t res = Ok;
+    res = ApolloIom_SpiWrite(pstcHandle,u32Chipselect,&u8Register,1,NULL,AM_HAL_IOM_RAW | AM_HAL_IOM_CS_LOW);
+    if (res != Ok) return res;
+    while(pstcHandle->STATUS_b.IDLEST == 0) __NOP();
+    res = ApolloIom_SpiRead(pstcHandle,u32Chipselect,pu8Data,u32Length,NULL,AM_HAL_IOM_RAW);
+    return res;
+}
+
+/**
+******************************************************************************
+** \brief  Write register data via SPI
+**
+** \param pstcHandle      IOM handle: IOMSTR0 or IOMSTR1 for Apollo, IOMSTR1..5 for Apollo 2
+**
+** \param u32Chipselect   Chipselect
+**
+** \param u8Register      Register
+**
+** \param pu8Data         Data
+**
+** \param u32Length       Data length
+**
+** \return                Ok on success
+******************************************************************************/
+en_result_t ApolloIom_SpiWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32Chipselect,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length)
+{
+    en_result_t res = Ok;
+    res = ApolloIom_SpiWrite(pstcHandle,u32Chipselect,&u8Register,1,NULL,AM_HAL_IOM_RAW | AM_HAL_IOM_CS_LOW);
+    if (res != Ok) return res;
+    while(pstcHandle->STATUS_b.IDLEST == 0) __NOP();
+    res = ApolloIom_SpiWrite(pstcHandle,u32Chipselect,pu8Data,u32Length,NULL,AM_HAL_IOM_RAW);
+    return res;
+}
+
 
 /**
 ******************************************************************************
@@ -995,7 +1076,7 @@ en_result_t ApolloIom_SpiRead(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, 
     
     //Poll for IOM had completed the operation
     SystemCoreClockUpdate();
-    u32Timeout = SystemCoreClock;
+    u32Timeout = SystemCoreClock/5;
     while(u32Timeout > 0)
     {
         u32Timeout--;
@@ -1021,17 +1102,6 @@ en_result_t ApolloIom_SpiRead(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, 
         tmp = FifoToData(pstcHandle,pu8Data,u32ReadLen);
         *pu32BytesRead += tmp;
         pu8Data += tmp;
-        /*
-        for ( i = 0; (4 * i) < u32ReadLen; i++ )
-        {
-            //
-            // Copy data out of the FIFO, one word at a time.
-            //
-            *pu32Data = pstcHandle->FIFO;
-            *pu32BytesRead += 4;
-            pu32Data++;
-        }
-        */
     }
     
     return Ok;

@@ -39,6 +39,7 @@ so agrees to indemnify Fujitsu against all liability.
 ** History:
 **   - 2017-01-31  V1.0  MSc  First Version
 **   - 2017-04-13  V1.1  MSc  Added one-byte transfer
+**   - 2017-10-17  V1.2  MSc  Added register based transfers
 **
 *****************************************************************************/
 #ifndef __APOLLOIOM_H__
@@ -138,7 +139,15 @@ extern "C"
 #if !defined(AM_HAL_IOM_CS_LOW)   
 #define AM_HAL_IOM_CS_LOW                   0x10000000
 #endif
-    
+
+#if !defined(AM_HAL_IOM_NO_STOP)   
+#define AM_HAL_IOM_NO_STOP                  0x10000000
+#endif
+
+#if !defined(AM_HAL_IOM_10BIT_ADDRESS)   
+#define AM_HAL_IOM_10BIT_ADDRESS            0x04000000
+#endif
+
 #if !defined(AM_HAL_IOM_LSB_FIRST)   
 #define AM_HAL_IOM_LSB_FIRST                0x08000000
 #endif
@@ -158,14 +167,6 @@ extern "C"
 #if !defined(AM_HAL_IOM_READ)   
 #define AM_HAL_IOM_READ                     0x80000000
 #endif
-    
-#if !defined(AM_HAL_IOM_RAW_WRITE)      
-#define AM_HAL_IOM_RAW_WRITE                0x40000000
-#endif
-    
-#if !defined(AM_HAL_IOM_RAW_READ)   
-#define AM_HAL_IOM_RAW_READ                 0xC0000000
-#endif    
     
 /*****************************************************************************/
 /* Global type definitions ('typedef')                                        */
@@ -266,7 +267,10 @@ void ApolloIom_SpiWriteByte(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, ui
 uint8_t ApolloIom_SpiReadByte(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint32_t u32Options);
 en_result_t ApolloIom_I2cCommand(IOMSTR0_Type* pstcHandle, uint32_t u32Operation, uint32_t u32BusAddress, uint32_t u32NumBytes, uint32_t u32Options);
 en_result_t ApolloIom_I2cWrite(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesWritten, uint32_t u32Options);
-en_result_t ApolloIom_SpiReadWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t* pu8DataOut, uint8_t* pu8DataIn, uint32_t u32NumBytes, uint32_t* pu32BytesTransferred, uint32_t u32Options);
+en_result_t ApolloIom_I2cReadRegister(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
+en_result_t ApolloIom_I2cWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
+en_result_t ApolloIom_SpiReadRegister(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
+en_result_t ApolloIom_SpiWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
 
 
 #ifdef __cplusplus
