@@ -462,8 +462,8 @@ void ApolloCTimer_PwmSetDuty(stc_apolloctimer_timer_ab_t* pstcHandle, float32_t 
         }
         if (pstcHandle == CTIMERB0)
         {
-            CTIMER->INTCLR_b.CTMRA0C1INT = 1;
-            while (CTIMER->INTSTAT_b.CTMRA0C1INT == 0) __NOP();
+            CTIMER->INTCLR_b.CTMRB0C1INT = 1;
+            while (CTIMER->INTSTAT_b.CTMRB0C1INT == 0) __NOP();
         }
         if (pstcHandle == CTIMERA1)
         {

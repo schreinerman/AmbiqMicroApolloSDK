@@ -39,6 +39,7 @@ so agrees to indemnify Fujitsu against all liability.
  ** History:
  **   - 2017-05-16  V1.0  MSc  First Version
  **   - 2017-06-20  V1.1  MSc  Updated general initialization routine
+ **   - 2017-10-17  V1.2  MSc  Fixed wrong register in duty update for CTIMERB0 Apollo2
  **
  *****************************************************************************/
 #ifndef __APOLLOCTIMER_H__
