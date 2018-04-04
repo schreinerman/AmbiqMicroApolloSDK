@@ -165,6 +165,14 @@ typedef enum en_apollogpio_mode
     GpioTriState = 3
 } en_apollogpio_mode_t;
 
+typedef enum en_apollogpio_pullup
+{
+    PullUp1K5 = 0,
+    PullUp6K = 1,
+    PullUp12K = 2,
+    PullUp24K = 3,
+} en_apollogpio_pullup_t;
+
 typedef void (*pfn_apollogpio_callback_t)(uint8_t pin);
 
 typedef enum en_apollogpio_edgedetect
@@ -194,9 +202,10 @@ boolean_t ApolloGpio_IrqIsEnabled(uint32_t pin);
 boolean_t ApolloGpio_IrqIsPending(uint32_t pin);
 boolean_t ApolloGpio_IrqExecute(uint32_t pin);
 void ApolloGpio_RegisterIrq(uint32_t pin, en_apollogpio_edgedetect_t enMode, pfn_apollogpio_callback_t pfnCallback);
+void ApolloGpio_UnRegisterIrq(uint32_t pin);
 boolean_t ApolloGpio_GpioGet(uint32_t pin);
 void ApolloGpio_GpioSetHighSwitch(uint32_t pin, boolean_t bOnOff);
-
+void ApolloGpio_GpioSelectPullup(uint32_t pin, en_apollogpio_pullup_t enPullUp);
 #endif /* (APOLLOGPIO_ENABLED == 1) */
 
 #ifdef __cplusplus

@@ -40,6 +40,7 @@ so agrees to indemnify Fujitsu against all liability.
 **   - 2017-01-31  V1.0  MSc  First Version
 **   - 2017-04-13  V1.1  MSc  Added one-byte transfer
 **   - 2017-10-17  V1.2  MSc  Added register based transfers
+**   - 2018-04-04  V1.3  MSc  Added interrupt handling and SW SPI
 **
 *****************************************************************************/
 #define __APOLLOIOM_C__
@@ -48,11 +49,18 @@ so agrees to indemnify Fujitsu against all liability.
 /*****************************************************************************/
 #include "apolloiom.h"
 #include "string.h"
+#if APOLLOSWSPI_ENABLED == 1
+    #if APOLLOGPIO_ENABLED == 0
+        #error Please enable Apollo GPIO module
+    #endif
+    #include "apollogpio.h"
+#endif
+
 /*****************************************************************************/
 /* Local pre-processor symbols/macros ('#define')                            */
 /*****************************************************************************/
 
-#if (APOLLOIOM_ENABLED == 1) || (IOMSTR0_ENABLED == 1) || (IOMSTR1_ENABLED == 1) || (IOMSTR2_ENABLED == 1) || (IOMSTR3_ENABLED == 1) || (IOMSTR4_ENABLED == 1) || (IOMSTR5_ENABLED == 1)
+#if (APOLLOSWSPI_ENABLED == 1) || (APOLLOIOM_ENABLED == 1) || (IOMSTR0_ENABLED == 1) || (IOMSTR1_ENABLED == 1) || (IOMSTR2_ENABLED == 1) || (IOMSTR3_ENABLED == 1) || (IOMSTR4_ENABLED == 1) || (IOMSTR5_ENABLED == 1)
 
 #define INSTANCE_COUNT (uint32_t)(sizeof(m_astcInstanceDataLut) / sizeof(m_astcInstanceDataLut[0]))
 #define MAX_FIFO_SIZE  64
@@ -71,7 +79,7 @@ so agrees to indemnify Fujitsu against all liability.
 /*****************************************************************************/
 /* Local variable definitions ('static')                                     */
 /*****************************************************************************/
-
+    
 /// Look-up table for all enabled IOM instances and their internal data
 static stc_apolloiom_instance_data_t m_astcInstanceDataLut[] =
 {
@@ -83,27 +91,32 @@ static stc_apolloiom_instance_data_t m_astcInstanceDataLut[] =
 #if defined(IOMSTR1) && ((IOMSTR1_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
     { (IOMSTR1),  // pstcInstance
     (0)          // stcInternData (not initialized yet)
-    }
+    },
 #endif
 #if defined(IOMSTR2) && ((IOMSTR2_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
     { IOMSTR2,  // pstcInstance
     0          // stcInternData (not initialized yet)
-    }
+    },
 #endif
 #if defined(IOMSTR3) && ((IOMSTR3_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
     { (IOMSTR3),  // pstcInstance
     (0)          // stcInternData (not initialized yet)
-    }
+    },
 #endif
 #if defined(IOMSTR4) && ((IOMSTR4_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
     { (IOMSTR4),  // pstcInstance
     (0)          // stcInternData (not initialized yet)
-    }
+    },
 #endif
 #if defined(IOMSTR5) && ((IOMSTR5_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
     { (IOMSTR5),  // pstcInstance
     (0)          // stcInternData (not initialized yet)
-    }
+    },
+#endif
+#if (APOLLOSWSPI_ENABLED == 1)
+    { (IOMSTR_SWSPI),  // pstcInstance
+    (0)                // stcInternData (not initialized yet)
+    },
 #endif
 };
 
@@ -161,7 +174,7 @@ static stc_apolloiom_intern_data_t* GetInternDataPtr(IOMSTR0_Type* pstcIf)
 ******************************************************************************/
 static uint32_t DataToFifo(IOMSTR0_Type* pstcHandle, uint8_t* pu8Data, uint32_t u32NumBytes)
 {
-    uint32_t i,j;
+    uint32_t i;
     uint32_t u32Tmp;
     if (pstcHandle == NULL) return ErrorInvalidParameter;
     
@@ -218,6 +231,7 @@ static uint32_t FifoToData(IOMSTR0_Type* pstcHandle, uint8_t* pu8Data, uint32_t 
     uint32_t i;
     uint32_t u32Tmp;
     if (pstcHandle == NULL) return ErrorInvalidParameter;
+    //if (u32NumBytes == 0) return Error;
     
     u32NumBytes = (u32NumBytes <= MAX_FIFO_SIZE ? u32NumBytes : MAX_FIFO_SIZE);
     
@@ -317,6 +331,18 @@ en_result_t ApolloIOM_Enable(IOMSTR0_Type* pstcInstance)
     if (pstcInstance == NULL) return ErrorInvalidParameter;
     pstcData = GetInternDataPtr(pstcInstance);
     
+    #if (APOLLOSWSPI_ENABLED == 1)
+       if (pstcInstance == IOMSTR_SWSPI)
+       {
+            ApolloGpio_GpioInputEnable(pstcData->u32MisoPin,TRUE);
+            ApolloGpio_GpioOutputEnable(pstcData->u32MosiPin,TRUE);
+            ApolloGpio_GpioOutputEnable(pstcData->u32SckPin,TRUE);
+
+            ApolloGpio_GpioPullupEnable(pstcData->u32MisoPin,TRUE);
+       }
+       return Ok;
+    #endif
+    
     pstcInstance->CFG_b.IFCEN = 1;
     #if defined(APOLLO_H) || defined(APOLLO1_H) || defined(APOLLO2_H)
         #if defined(IOMSTR0)
@@ -380,6 +406,18 @@ en_result_t ApolloIOM_Disable(IOMSTR0_Type* pstcInstance)
     if (pstcInstance == NULL) return ErrorInvalidParameter;
     pstcData = GetInternDataPtr(pstcInstance);
     
+    #if (APOLLOSWSPI_ENABLED == 1)
+       if (pstcInstance == IOMSTR_SWSPI)
+       {
+            ApolloGpio_GpioInputEnable(pstcData->u32MisoPin,FALSE);
+            ApolloGpio_GpioOutputEnable(pstcData->u32MosiPin,FALSE);
+            ApolloGpio_GpioOutputEnable(pstcData->u32SckPin,FALSE);
+
+            ApolloGpio_GpioPullupEnable(pstcData->u32MisoPin,FALSE);
+       }
+       return Ok;
+    #endif
+       
     //Poll for IOM had completed the operation
     SystemCoreClockUpdate();
     u32Timeout = SystemCoreClock/5;
@@ -578,6 +616,12 @@ en_result_t ApolloIOM_Configure(IOMSTR0_Type* pstcInstance, const stc_apolloiom_
     stc_apolloiom_intern_data_t* pstcData;
     if (pstcInstance == NULL) return ErrorInvalidParameter;
     pstcData = GetInternDataPtr(pstcInstance);
+    #if (APOLLOSWSPI_ENABLED == 1)
+       if (pstcInstance == IOMSTR_SWSPI)
+       {
+           return Error;
+       }
+    #endif
     #if defined(APOLLO2_H)
         switch((int)pstcInstance)
         {
@@ -801,11 +845,39 @@ en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,
 {
     uint32_t tmp;
     volatile uint32_t u32Timeout;
+    #if (APOLLOSWSPI_ENABLED == 1)
+        stc_apolloiom_intern_data_t* pstcData;
+        if (pstcHandle == IOMSTR_SWSPI)
+        {
+            if (pstcHandle == NULL) return ErrorInvalidParameter;
+            pstcData = GetInternDataPtr(pstcHandle);
+        }
+    #endif
     
     if (pu32BytesWritten == NULL) pu32BytesWritten = &tmp;
     
     if (pstcHandle == NULL) return ErrorInvalidParameter;
     
+    #if (APOLLOSWSPI_ENABLED == 1)
+       if (pstcHandle == IOMSTR_SWSPI)
+       {
+           if (u32Options & AM_HAL_IOM_CS_LOW)
+           {
+               ApolloGpio_GpioSet(u32ChipSelect,FALSE);
+           }
+           for (tmp = 0;tmp < u32NumBytes;tmp++)
+           {
+               ApolloIom_SwSpiReadWrite(pstcData->u32MosiPin,pstcData->u32MisoPin,pstcData->u32SckPin,pu8Data[tmp]);
+           }
+           if (u32Options & AM_HAL_IOM_CS_LOW)
+           {
+               ApolloGpio_GpioSet(u32ChipSelect,TRUE);
+           }
+           if (pu32BytesWritten != NULL) *pu32BytesWritten = u32NumBytes;
+           return Ok;
+       }
+    #endif
+       
     //Poll for IOM had completed the operation
     SystemCoreClockUpdate();
     u32Timeout = SystemCoreClock/5;
@@ -931,6 +1003,7 @@ en_result_t ApolloIom_I2cRead(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, 
     
     ApolloIom_I2cCommand(pstcHandle,AM_HAL_IOM_READ,u32BusAddress,u32NumBytes,u32Options);
     
+    u32Timeout = 0;
     while(pstcHandle->STATUS_b.IDLEST == 0)
     {
         u32ReadLen = 0;
@@ -945,6 +1018,11 @@ en_result_t ApolloIom_I2cRead(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, 
         tmp = FifoToData(pstcHandle,pu8Data,u32ReadLen);
         *pu32BytesRead += tmp;
         pu8Data += tmp;
+        if (u32ReadLen == 0) 
+        {
+            u32Timeout++;
+            if (u32Timeout > SystemCoreClock/100) return Error;
+        }
     }
     
     return Ok;
@@ -1071,9 +1149,37 @@ en_result_t ApolloIom_SpiRead(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, 
     uint32_t u32ReadLen = 0;
     uint32_t tmp;
     volatile uint32_t u32Timeout;
+    #if (APOLLOSWSPI_ENABLED == 1)
+        stc_apolloiom_intern_data_t* pstcData;
+        if (pstcHandle == IOMSTR_SWSPI)
+        {
+            if (pstcHandle == NULL) return ErrorInvalidParameter;
+            pstcData = GetInternDataPtr(pstcHandle);
+        }
+    #endif
     
     if (pu32BytesRead == NULL) pu32BytesRead = &tmp;
     
+    #if (APOLLOSWSPI_ENABLED == 1)
+       if (pstcHandle == IOMSTR_SWSPI)
+       {
+           if (u32Options & AM_HAL_IOM_CS_LOW)
+           {
+               ApolloGpio_GpioSet(u32ChipSelect,FALSE);
+           }
+           for (tmp = 0;tmp < u32NumBytes;tmp++)
+           {
+               pu8Data[tmp] = ApolloIom_SwSpiReadWrite(pstcData->u32MosiPin,pstcData->u32MisoPin,pstcData->u32SckPin,0x00);
+           }
+           if (u32Options & AM_HAL_IOM_CS_LOW)
+           {
+               ApolloGpio_GpioSet(u32ChipSelect,TRUE);
+           }
+           if (pu32BytesRead != NULL) *pu32BytesRead = u32NumBytes;
+           return Ok;
+       }
+    #endif
+       
     //Poll for IOM had completed the operation
     SystemCoreClockUpdate();
     u32Timeout = SystemCoreClock/5;
@@ -1141,6 +1247,236 @@ uint8_t ApolloIom_SpiReadByte(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, 
     uint8_t u8Data = 0;
     ApolloIom_SpiRead(pstcHandle,u32ChipSelect,&u8Data,1,NULL,u32Options);
     return u8Data;
+}
+
+#if APOLLOSWSPI_ENABLED == 1
+
+/**
+******************************************************************************
+** \brief  Configure Software SPI
+**
+** \param u32MosiPin      GPIO for MOSI
+**
+** \param u32MisoPin      GPIO for MISO
+**
+** \param u32SckPin       GPIO for SCK
+**
+** \return Ok at success
+**
+******************************************************************************/
+en_result_t ApolloIOM_ConfigureSwSpi(IOMSTR0_Type* pstcInstance, uint32_t u32MosiPin, uint32_t u32MisoPin, uint32_t u32SckPin)
+{
+    stc_apolloiom_intern_data_t* pstcData = NULL;
+    if (pstcInstance == NULL) return ErrorInvalidParameter;
+    pstcData = GetInternDataPtr(pstcInstance);
+    
+    if (pstcInstance == IOMSTR_SWSPI)
+    {
+        pstcData->u32MosiPin = u32MosiPin;
+        pstcData->u32MisoPin = u32MisoPin;
+        pstcData->u32SckPin = u32SckPin;
+        return Ok;
+    }
+    return Error;
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Transfert data via software SPI
+ **
+ ** \param u32MosiPin      GPIO for MOSI
+ **
+ ** \param u32MisoPin      GPIO for MISO
+ **
+ ** \param u32SckPin       GPIO for SCK
+ **
+ ** \param u8DataOut       Data to send
+ **
+ ** \return                Data read
+ ******************************************************************************/
+uint8_t ApolloIom_SwSpiReadWrite(uint32_t u32MosiPin, uint32_t u32MisoPin, uint32_t u32SckPin, uint8_t u8DataOut)
+{
+  uint8_t i;
+  uint8_t u8DataIn = 0;
+
+  for (i = 0; i < 8; i++) 
+  {
+        ApolloGpio_GpioSet(u32MosiPin,(u8DataOut & 0x01));
+        u8DataOut = u8DataOut>>1;
+
+        ApolloGpio_GpioSet(u32SckPin,TRUE);
+
+        if (1 == ApolloGpio_GpioGet(u32MisoPin))
+        {
+            u8DataIn |= (1<<i);
+        }
+
+        ApolloGpio_GpioSet(u32SckPin,FALSE);
+  }
+
+  return u8DataIn;
+}
+#endif
+
+/**
+ ******************************************************************************
+ ** \brief  Enable interrupts
+ **
+ ** \param pstcHandle     IOM handle: IOMSTR0 or IOMSTR1 for Apollo, IOMSTR1..5 for Apollo 2
+ **
+ ** \param u32Priority    Interrupt priority as defined in CMSIS
+ **
+ ** \param u32EnableMask  Enable mask:
+ **                       APOLLOIOM_IRQ_ARB -> This is the arbitration loss interrupt.
+ **                       APOLLOIOM_IRQ_STOP -> This is the STOP command interrupt.
+ **                       APOLLOIOM_IRQ_START -> This is the START command interrupt.
+ **                       APOLLOIOM_IRQ_ICMD -> This is the illegal command interrupt.
+ **                       APOLLOIOM_IRQ_IACC -> This is the illegal FIFO access interrupt.
+ **                       APOLLOIOM_IRQ_WTLEN -> This is the write length mismatch interrupt.
+ **                       APOLLOIOM_IRQ_NAK -> This is the I2C NAK interrupt.
+ **                       APOLLOIOM_IRQ_FOVFL -> This is the Read FIFO Overflow interrupt.
+ **                       APOLLOIOM_IRQ_FUNDFL -> This is the Write FIFO Underflow interrupt.
+ **                       APOLLOIOM_IRQ_THR -> This is the FIFO Threshold interrupt.
+ **                       APOLLOIOM_IRQ_CMDCMP -> This is the Command Complete interrupt.
+ **
+ ** \return               Ok on success
+ ******************************************************************************/
+en_result_t ApolloIom_EnableInterrupts(IOMSTR0_Type* pstcInstance, uint32_t u32Priority, uint32_t u32EnableMask)
+{
+    uint32_t u32Tmp;
+    IRQn_Type irqNum;
+    switch((uint32_t)pstcInstance)
+    {
+        #if defined(IOMSTR0) && ((IOMSTR0_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+        case (uint32_t)IOMSTR0:
+            irqNum = IOMSTR0_IRQn;
+            break;
+        #endif
+        #if defined(IOMSTR1) && ((IOMSTR1_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+        case (uint32_t)IOMSTR1:
+            irqNum = IOMSTR1_IRQn;
+            break;
+        #endif
+        #if defined(IOMSTR2) && ((IOMSTR2_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+        case (uint32_t)IOMSTR2:   
+            irqNum = IOMSTR2_IRQn;
+            break;
+        #endif
+        #if defined(IOMSTR3) && ((IOMSTR3_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+        case (uint32_t)IOMSTR3:   
+            irqNum = IOMSTR3_IRQn;
+            break;
+        #endif
+        #if defined(IOMSTR4) && ((IOMSTR4_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+        case (uint32_t)IOMSTR4:
+            irqNum = IOMSTR4_IRQn;
+            break;
+        #endif
+        #if defined(IOMSTR5) && ((IOMSTR5_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+        case (uint32_t)IOMSTR5:
+            irqNum = IOMSTR5_IRQn;
+            break;
+        #endif
+        #if (APOLLOSWSPI_ENABLED == 1)
+        case (uint32_t)IOMSTR_SWSPI:
+            return Error;
+        #endif
+      default:
+        return Error;
+    }
+    u32Tmp = pstcInstance->INTEN;
+    u32Tmp |= u32EnableMask;
+    
+    if (u32Tmp > 0)
+    {
+        NVIC_ClearPendingIRQ(irqNum);              //clear pending flag 
+        NVIC_EnableIRQ(irqNum);                    //enable IRQ
+        NVIC_SetPriority(irqNum,u32Priority);      //set priority of IRQ, smaller value means higher priority
+        pstcInstance->INTEN = u32Tmp;
+    } else
+    {
+        NVIC_ClearPendingIRQ(irqNum);              //clear pending flag 
+        NVIC_DisableIRQ(irqNum);                    //enable IRQ
+        pstcInstance->INTEN = u32Tmp;
+    }
+    return Ok;
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Disable interrupts
+ **
+ ** \param pstcHandle     IOM handle: IOMSTR0 or IOMSTR1 for Apollo, IOMSTR1..5 for Apollo 2
+ **
+ ** \param u32Priority    Interrupt priority as defined in CMSIS
+ **
+ ** \param u32DisableMask Disable mask:
+ **                       APOLLOIOM_IRQ_ARB -> This is the arbitration loss interrupt.
+ **                       APOLLOIOM_IRQ_STOP -> This is the STOP command interrupt.
+ **                       APOLLOIOM_IRQ_START -> This is the START command interrupt.
+ **                       APOLLOIOM_IRQ_ICMD -> This is the illegal command interrupt.
+ **                       APOLLOIOM_IRQ_IACC -> This is the illegal FIFO access interrupt.
+ **                       APOLLOIOM_IRQ_WTLEN -> This is the write length mismatch interrupt.
+ **                       APOLLOIOM_IRQ_NAK -> This is the I2C NAK interrupt.
+ **                       APOLLOIOM_IRQ_FOVFL -> This is the Read FIFO Overflow interrupt.
+ **                       APOLLOIOM_IRQ_FUNDFL -> This is the Write FIFO Underflow interrupt.
+ **                       APOLLOIOM_IRQ_THR -> This is the FIFO Threshold interrupt.
+ **                       APOLLOIOM_IRQ_CMDCMP -> This is the Command Complete interrupt.
+ **
+ ** \return               Ok on success
+ ******************************************************************************/
+en_result_t ApolloIom_DisableInterrupts(IOMSTR0_Type* pstcInstance, uint32_t u32DisableMask)
+{
+    uint32_t u32Tmp;
+    IRQn_Type irqNum;
+    switch((uint32_t)pstcInstance)
+    {
+        #if defined(IOMSTR0) && ((IOMSTR0_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+        case (uint32_t)IOMSTR0:
+            irqNum = IOMSTR0_IRQn;
+            break;
+        #endif
+        #if defined(IOMSTR1) && ((IOMSTR1_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+        case (uint32_t)IOMSTR1:
+            irqNum = IOMSTR1_IRQn;
+            break;
+        #endif
+        #if defined(IOMSTR2) && ((IOMSTR2_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+        case (uint32_t)IOMSTR2:   
+            irqNum = IOMSTR2_IRQn;
+            break;
+        #endif
+        #if defined(IOMSTR3) && ((IOMSTR3_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+        case (uint32_t)IOMSTR3:   
+            irqNum = IOMSTR3_IRQn;
+            break;
+        #endif
+        #if defined(IOMSTR4) && ((IOMSTR4_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+        case (uint32_t)IOMSTR4:
+            irqNum = IOMSTR4_IRQn;
+            break;
+        #endif
+        #if defined(IOMSTR5) && ((IOMSTR5_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+        case (uint32_t)IOMSTR5:
+            irqNum = IOMSTR5_IRQn;
+            break;
+        #endif
+        #if (APOLLOSWSPI_ENABLED == 1)
+        case (uint32_t)IOMSTR_SWSPI:
+            return Error;
+        #endif
+      default:
+        return Error;
+    }
+    u32Tmp = pstcInstance->INTEN;
+    u32Tmp &= ~u32DisableMask;
+    if (u32Tmp == 0)
+    {
+        NVIC_ClearPendingIRQ(irqNum);              //clear pending flag 
+        NVIC_DisableIRQ(irqNum);                    //enable IRQ
+        pstcInstance->INTEN = u32Tmp;
+    }
+    return Ok;
 }
 
 #endif /* (IOMSTR0_ENABLED == 1) && (IOMSTR1_ENABLED == 1) */
