@@ -40,6 +40,7 @@ so agrees to indemnify Fujitsu against all liability.
 **   - 2017-01-31  V1.0  MSc  First Version
 **   - 2017-04-13  V1.1  MSc  Added one-byte transfer
 **   - 2017-10-17  V1.2  MSc  Added register based transfers
+**   - 2018-04-04  V1.3  MSc  Added interrupt handling and SW SPI
 **
 *****************************************************************************/
 #ifndef __APOLLOIOM_H__
@@ -167,7 +168,21 @@ extern "C"
 #if !defined(AM_HAL_IOM_READ)   
 #define AM_HAL_IOM_READ                     0x80000000
 #endif
-    
+
+#define IOMSTR_SWSPI ((IOMSTR0_Type*)(IOMSTR0 + 4))
+
+#define APOLLOIOM_IRQ_ARB                   (1 << IOMSTR0_INTEN_ARB_Pos)    ///< This is the arbitration loss interrupt.
+#define APOLLOIOM_IRQ_STOP                  (1 << IOMSTR0_INTEN_STOP_Pos)   ///< This is the STOP command interrupt.
+#define APOLLOIOM_IRQ_START                 (1 << IOMSTR0_INTEN_START_Pos)  ///< This is the START command interrupt.
+#define APOLLOIOM_IRQ_ICMD                  (1 << IOMSTR0_INTEN_ICMD_Pos)   ///< This is the illegal command interrupt.
+#define APOLLOIOM_IRQ_IACC                  (1 << IOMSTR0_INTEN_IACC_Pos)   ///< This is the illegal FIFO access interrupt.
+#define APOLLOIOM_IRQ_WTLEN                 (1 << IOMSTR0_INTEN_WTLEN_Pos)  ///< This is the write length mismatch interrupt.
+#define APOLLOIOM_IRQ_NAK                   (1 << IOMSTR0_INTEN_NAK_Pos)    ///< This is the I2C NAK interrupt.
+#define APOLLOIOM_IRQ_FOVFL                 (1 << IOMSTR0_INTEN_FOVFL_Pos)  ///< This is the Read FIFO Overflow interrupt.
+#define APOLLOIOM_IRQ_FUNDFL                (1 << IOMSTR0_INTEN_FUNDFL_Pos) ///< This is the Write FIFO Underflow interrupt.
+#define APOLLOIOM_IRQ_THR                   (1 << IOMSTR0_INTEN_THR_Pos)    ///< This is the FIFO Threshold interrupt.
+#define APOLLOIOM_IRQ_CMDCMP                (1 << IOMSTR0_INTEN_THR_Pos)    ///< This is the Command Complete interrupt.
+
 /*****************************************************************************/
 /* Global type definitions ('typedef')                                        */
 /*****************************************************************************/
@@ -236,7 +251,10 @@ typedef struct stc_apolloiom_intern_data
 {
     uint32_t u32ModInterface;
     stc_apolloiom_nb_buffer_t pstcBuffer;
-    en_apolloiom_interface_mode_t enInterfaceMode;    
+    en_apolloiom_interface_mode_t enInterfaceMode;
+    uint32_t u32MosiPin;
+    uint32_t u32MisoPin;
+    uint32_t u32SckPin;
 } stc_apolloiom_intern_data_t;
 
 /// ApolloIOM module internal data, storing internal information for each IOM instance.
@@ -246,10 +264,11 @@ typedef struct stc_apolloiom_instance_data
     stc_apolloiom_intern_data_t stcInternData; ///< module internal data of instance
 } stc_apolloiom_instance_data_t;
 
+typedef void (*pfn_apollospi_rxtx_t) (IOMSTR0_Type* pstcInstance, uint32_t u32DataTransferred);
+
 /*****************************************************************************/
 /* Global variable declarations ('extern', definition in C source)           */
 /*****************************************************************************/
-
 
 
 /*****************************************************************************/
@@ -271,7 +290,10 @@ en_result_t ApolloIom_I2cReadRegister(IOMSTR0_Type* pstcHandle, uint32_t u32BusA
 en_result_t ApolloIom_I2cWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
 en_result_t ApolloIom_SpiReadRegister(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
 en_result_t ApolloIom_SpiWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
+uint8_t ApolloIom_SwSpiReadWrite(uint32_t u32MosiPin, uint32_t u32MisoPin, uint32_t u32SckPin, uint8_t u8DataOut);
 
+en_result_t ApolloIom_DisableInterrupts(IOMSTR0_Type* pstcInstance, uint32_t u32DisableMask);
+en_result_t ApolloIom_EnableInterrupts(IOMSTR0_Type* pstcInstance, uint32_t u32Priority, uint32_t u32EnableMask);
 
 #ifdef __cplusplus
 }
