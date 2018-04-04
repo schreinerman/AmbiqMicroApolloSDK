@@ -54,7 +54,7 @@ so agrees to indemnify Fujitsu against all liability.
         #error Please enable Apollo GPIO module
     #endif
     #include "apollogpio.h"
-#endif
+#endif 
 
 /*****************************************************************************/
 /* Local pre-processor symbols/macros ('#define')                            */
@@ -339,8 +339,8 @@ en_result_t ApolloIOM_Enable(IOMSTR0_Type* pstcInstance)
             ApolloGpio_GpioOutputEnable(pstcData->u32SckPin,TRUE);
 
             ApolloGpio_GpioPullupEnable(pstcData->u32MisoPin,TRUE);
+            return Ok;
        }
-       return Ok;
     #endif
     
     pstcInstance->CFG_b.IFCEN = 1;
@@ -414,8 +414,9 @@ en_result_t ApolloIOM_Disable(IOMSTR0_Type* pstcInstance)
             ApolloGpio_GpioOutputEnable(pstcData->u32SckPin,FALSE);
 
             ApolloGpio_GpioPullupEnable(pstcData->u32MisoPin,FALSE);
+            return Ok;
        }
-       return Ok;
+       
     #endif
        
     //Poll for IOM had completed the operation
@@ -1385,6 +1386,7 @@ en_result_t ApolloIom_EnableInterrupts(IOMSTR0_Type* pstcInstance, uint32_t u32P
         return Error;
     }
     u32Tmp = pstcInstance->INTEN;
+    pstcInstance->INTEN = 0;
     u32Tmp |= u32EnableMask;
     
     if (u32Tmp > 0)
@@ -1392,13 +1394,12 @@ en_result_t ApolloIom_EnableInterrupts(IOMSTR0_Type* pstcInstance, uint32_t u32P
         NVIC_ClearPendingIRQ(irqNum);              //clear pending flag 
         NVIC_EnableIRQ(irqNum);                    //enable IRQ
         NVIC_SetPriority(irqNum,u32Priority);      //set priority of IRQ, smaller value means higher priority
-        pstcInstance->INTEN = u32Tmp;
     } else
     {
         NVIC_ClearPendingIRQ(irqNum);              //clear pending flag 
         NVIC_DisableIRQ(irqNum);                    //enable IRQ
-        pstcInstance->INTEN = u32Tmp;
     }
+    pstcInstance->INTEN = u32Tmp;
     return Ok;
 }
 
@@ -1469,13 +1470,14 @@ en_result_t ApolloIom_DisableInterrupts(IOMSTR0_Type* pstcInstance, uint32_t u32
         return Error;
     }
     u32Tmp = pstcInstance->INTEN;
+    pstcInstance->INTEN = 0;
     u32Tmp &= ~u32DisableMask;
     if (u32Tmp == 0)
     {
         NVIC_ClearPendingIRQ(irqNum);              //clear pending flag 
         NVIC_DisableIRQ(irqNum);                    //enable IRQ
-        pstcInstance->INTEN = u32Tmp;
     }
+    pstcInstance->INTEN = u32Tmp;
     return Ok;
 }
 
