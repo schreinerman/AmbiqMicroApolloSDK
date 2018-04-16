@@ -41,6 +41,8 @@ so agrees to indemnify Fujitsu against all liability.
 **   - 2017-04-13  V1.1  MSc  Added one-byte transfer
 **   - 2017-10-17  V1.2  MSc  Added register based transfers
 **   - 2018-04-04  V1.3  MSc  Added interrupt handling and SW SPI
+**   - 2018-04-16  V1.4  MSc  Added more intelligent pin setup and prepared for mbed
+**                            ,added fullduplex for Apollo2 B2 and SW SPI
 **
 *****************************************************************************/
 #ifndef __APOLLOIOM_H__
@@ -181,18 +183,82 @@ extern "C"
 #define APOLLOIOM_IRQ_FOVFL                 (1 << IOMSTR0_INTEN_FOVFL_Pos)  ///< This is the Read FIFO Overflow interrupt.
 #define APOLLOIOM_IRQ_FUNDFL                (1 << IOMSTR0_INTEN_FUNDFL_Pos) ///< This is the Write FIFO Underflow interrupt.
 #define APOLLOIOM_IRQ_THR                   (1 << IOMSTR0_INTEN_THR_Pos)    ///< This is the FIFO Threshold interrupt.
-#define APOLLOIOM_IRQ_CMDCMP                (1 << IOMSTR0_INTEN_THR_Pos)    ///< This is the Command Complete interrupt.
+#define APOLLOIOM_IRQ_CMDCMP                (1 << IOMSTR0_INTEN_CMDCMP_Pos) ///< This is the Command Complete interrupt.
 
 /*****************************************************************************/
 /* Global type definitions ('typedef')                                        */
 /*****************************************************************************/
 
+#if defined(__CC_ARM)
+  #pragma push
+  #pragma anon_unions
+#elif defined(__ICCARM__)
+  #pragma language=extended
+#elif defined(__GNUC__)
+  /* anonymous unions are enabled by default */
+#elif defined(__TMS470__)
+/* anonymous unions are enabled by default */
+#elif defined(__TASKING__)
+  #pragma warning 586
+#else
+  #warning Not supported compiler type
+#endif
+    
 typedef enum en_apolloiom_interface_mode
 {
     IomInterfaceModeI2C = 0,
     IomInterfaceModeSpi = 1,
 } en_apolloiom_interface_mode_t;
 
+typedef enum en_apolloiom_active_interfaces
+{
+    #if defined(IOMSTR0) && ((IOMSTR0_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+    ApolloIom0,
+    #endif
+    #if defined(IOMSTR1) && ((IOMSTR1_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+    ApolloIom1,
+    #endif
+    #if defined(IOMSTR2) && ((IOMSTR2_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+    ApolloIom2,
+    #endif
+    #if defined(IOMSTR3) && ((IOMSTR3_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+    ApolloIom3,
+    #endif
+    #if defined(IOMSTR4) && ((IOMSTR4_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+    ApolloIom4,
+    #endif
+    #if defined(IOMSTR5) && ((IOMSTR5_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+    ApolloIom5,
+    #endif
+    #if defined(IOMSTR6) && ((IOMSTR6_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+    ApolloIom6,
+    #endif
+    #if defined(IOMSTR7) && ((IOMSTR7_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+    ApolloIom7,
+    #endif
+    ApolloIomMax
+} en_apolloiom_active_interfaces_t;
+
+typedef struct stc_apolloiom_gpios
+{
+    union {
+        uint8_t u8SckPin;
+        uint8_t u8SclPin;
+    };
+    union {
+        uint8_t u8MisoPin;
+        uint8_t u8SdaPin;
+    };
+    uint8_t u8MosiPin;
+} stc_apolloiom_gpios_t;
+
+typedef struct stc_apolloiom_gpio_func
+{
+    IOMSTR0_Type* pstcHandle;
+    stc_apolloiom_gpios_t stcGpios;
+    uint8_t u8FunctionSPI;
+    uint8_t u8FunctionI2C;
+} stc_apolloiom_gpio_func_t;
 
 //*****************************************************************************
 //
@@ -235,26 +301,51 @@ typedef struct stc_apolloiom_config
     // of entries in the FIFO grows *larger* than this number.
     //
     uint8_t u8ReadThreshold;
+
+    boolean_t bFullDuplex;
+    
+    stc_apolloiom_gpios_t stcGpios;
+
 } stc_apolloiom_config_t;
 
-// Non-blocking buffer and buffer-management variables  
+
+/// Non-blocking buffer and buffer-management variables  
 typedef struct stc_apolloiom_nb_buffer
 {
-    uint32_t u32State;
-    uint32_t *pu32Data;
+    union {
+        uint32_t u32State;
+        struct {
+            __IO uint32_t  RX       :  1;
+            __IO uint32_t  TX       :  1;
+            __IO uint32_t  RESERVED : 30;
+        } u32State_b;
+    };
+    union {        
+        uint8_t *pu8Data;
+        uint8_t *pu8DataIN;
+    };
+    union {          
+        uint8_t *pu8DataPos;
+        uint8_t *pu8DataPosIN;
+    };
     uint32_t u32BytesLeft;
-    void (*pfnCallback)(void);
+    uint32_t u32Options;
+    uint32_t u32Chipselect;
+    uint8_t *pu8DataOUT;
+    uint8_t *pu8DataPosOUT;
 } stc_apolloiom_nb_buffer_t;
+
+
+typedef void (*pfn_apollospi_rxtx_t) (IOMSTR0_Type* pstcInstance, stc_apolloiom_nb_buffer_t* pstcBuffer);
 
 /// ApolloIOM module internal data
 typedef struct stc_apolloiom_intern_data
 {
     uint32_t u32ModInterface;
-    stc_apolloiom_nb_buffer_t pstcBuffer;
+    stc_apolloiom_nb_buffer_t stcBuffer;
     en_apolloiom_interface_mode_t enInterfaceMode;
-    uint32_t u32MosiPin;
-    uint32_t u32MisoPin;
-    uint32_t u32SckPin;
+    stc_apolloiom_gpios_t stcGpios;
+    pfn_apollospi_rxtx_t pfnCallback;
 } stc_apolloiom_intern_data_t;
 
 /// ApolloIOM module internal data, storing internal information for each IOM instance.
@@ -264,7 +355,19 @@ typedef struct stc_apolloiom_instance_data
     stc_apolloiom_intern_data_t stcInternData; ///< module internal data of instance
 } stc_apolloiom_instance_data_t;
 
-typedef void (*pfn_apollospi_rxtx_t) (IOMSTR0_Type* pstcInstance, uint32_t u32DataTransferred);
+#if defined(__CC_ARM)
+  #pragma pop
+#elif defined(__ICCARM__)
+  /* leave anonymous unions enabled */
+#elif defined(__GNUC__)
+  /* anonymous unions are enabled by default */
+#elif defined(__TMS470__)
+  /* anonymous unions are enabled by default */
+#elif defined(__TASKING__)
+  #pragma warning restore
+#else
+  #warning Not supported compiler type
+#endif
 
 /*****************************************************************************/
 /* Global variable declarations ('extern', definition in C source)           */
@@ -279,10 +382,11 @@ en_result_t ApolloIOM_Enable(IOMSTR0_Type* pstcInstance);
 en_result_t ApolloIOM_Disable(IOMSTR0_Type* pstcInstance);
 en_result_t ApolloIOM_Configure(IOMSTR0_Type* pstcInstance, const stc_apolloiom_config_t* pstcConfig);
 en_result_t ApolloIom_SpiCommand(IOMSTR0_Type* pstcHandle, uint32_t u32Operation, uint32_t u32ChipSelect, uint32_t u32NumBytes, uint32_t u32Options);
-en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesWritten, uint32_t u32Options);
+en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesWritten, uint32_t u32Options,pfn_apollospi_rxtx_t pfnCallback);
 en_result_t ApolloIom_SpiWritePolled(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesWritten, uint32_t u32Options);
-en_result_t ApolloIom_SpiRead(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesRead, uint32_t u32Options);
+en_result_t ApolloIom_SpiRead(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesRead, uint32_t u32Options,pfn_apollospi_rxtx_t pfnCallback);
 void ApolloIom_SpiWriteByte(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t u8Data, uint32_t u32Options);
+en_result_t ApolloIom_SpiTransfer(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t* pu8DataOut, uint8_t* pu8DataIn, uint32_t u32NumBytes, uint32_t* pu32BytesWritten, uint32_t u32Options,pfn_apollospi_rxtx_t pfnCallback);
 uint8_t ApolloIom_SpiReadByte(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint32_t u32Options);
 en_result_t ApolloIom_I2cCommand(IOMSTR0_Type* pstcHandle, uint32_t u32Operation, uint32_t u32BusAddress, uint32_t u32NumBytes, uint32_t u32Options);
 en_result_t ApolloIom_I2cWrite(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesWritten, uint32_t u32Options);
@@ -291,9 +395,13 @@ en_result_t ApolloIom_I2cWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32Bus
 en_result_t ApolloIom_SpiReadRegister(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
 en_result_t ApolloIom_SpiWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
 uint8_t ApolloIom_SwSpiReadWrite(uint32_t u32MosiPin, uint32_t u32MisoPin, uint32_t u32SckPin, uint8_t u8DataOut);
-
 en_result_t ApolloIom_DisableInterrupts(IOMSTR0_Type* pstcInstance, uint32_t u32DisableMask);
 en_result_t ApolloIom_EnableInterrupts(IOMSTR0_Type* pstcInstance, uint32_t u32Priority, uint32_t u32EnableMask);
+void ApolloIom_IRQHandler(IOMSTR0_Type* pstcInstance);
+IOMSTR0_Type* ApolloIOM_GetSpiByPin(uint8_t u8SckPin, uint8_t u8MisoPin, uint8_t u8MosiPin);
+IOMSTR0_Type* ApolloIOM_GetI2cByPin(uint8_t u8SclPin, uint8_t u8SdaPin);
+stc_apolloiom_gpios_t* ApolloIOM_GetPinsByInstance(IOMSTR0_Type* pstcInstance);
+
 
 #ifdef __cplusplus
 }
