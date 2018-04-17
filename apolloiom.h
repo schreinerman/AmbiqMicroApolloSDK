@@ -41,8 +41,9 @@ so agrees to indemnify Fujitsu against all liability.
 **   - 2017-04-13  V1.1  MSc  Added one-byte transfer
 **   - 2017-10-17  V1.2  MSc  Added register based transfers
 **   - 2018-04-04  V1.3  MSc  Added interrupt handling and SW SPI
-**   - 2018-04-16  V1.4  MSc  Added more intelligent pin setup and prepared for mbed
+**   - 2018-04-17  V1.4  MSc  Added more intelligent pin setup and prepared for mbed
 **                            ,added fullduplex for Apollo2 B2 and SW SPI
+**                            ,added I2C bus reset
 **
 *****************************************************************************/
 #ifndef __APOLLOIOM_H__
@@ -394,7 +395,7 @@ en_result_t ApolloIom_I2cReadRegister(IOMSTR0_Type* pstcHandle, uint32_t u32BusA
 en_result_t ApolloIom_I2cWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
 en_result_t ApolloIom_SpiReadRegister(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
 en_result_t ApolloIom_SpiWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
-uint8_t ApolloIom_SwSpiReadWrite(uint32_t u32MosiPin, uint32_t u32MisoPin, uint32_t u32SckPin, uint8_t u8DataOut);
+uint8_t ApolloIom_SwSpiReadWrite(uint32_t u32MosiPin, uint32_t u32MisoPin, uint32_t u32SckPin, uint8_t u8DataOut, boolean_t bOrderLsbFirst);
 en_result_t ApolloIom_DisableInterrupts(IOMSTR0_Type* pstcInstance, uint32_t u32DisableMask);
 en_result_t ApolloIom_EnableInterrupts(IOMSTR0_Type* pstcInstance, uint32_t u32Priority, uint32_t u32EnableMask);
 void ApolloIom_IRQHandler(IOMSTR0_Type* pstcInstance);

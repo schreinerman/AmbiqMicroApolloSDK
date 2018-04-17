@@ -437,7 +437,7 @@ en_result_t ApolloIOM_Enable(IOMSTR0_Type* pstcInstance)
             ApolloGpio_GpioOutputEnable(pstcData->stcGpios.u8MosiPin,TRUE);
             ApolloGpio_GpioOutputEnable(pstcData->stcGpios.u8SckPin,TRUE);
 
-            ApolloGpio_GpioPullupEnable(pstcData->stcGpios.u8MisoPin,TRUE);
+            //ApolloGpio_GpioPullupEnable(pstcData->stcGpios.u8MisoPin,TRUE);
             return Ok;
        }
     #endif
@@ -446,11 +446,18 @@ en_result_t ApolloIOM_Enable(IOMSTR0_Type* pstcInstance)
 
     if (pstcData->enInterfaceMode == IomInterfaceModeSpi)
     {
-        ApolloGpio_GpioInputEnable(pstcData->stcGpios.u8MisoPin,TRUE);
-        ApolloGpio_GpioInputEnable(pstcData->stcGpios.u8SckPin,TRUE);
-        ApolloGpio_GpioOutputEnable(pstcData->stcGpios.u8MosiPin,TRUE);
-        ApolloGpio_GpioOutputEnable(pstcData->stcGpios.u8SckPin,TRUE);
+        if (!(pstcData->stcGpios.u8MisoPin == pstcData->stcGpios.u8MosiPin == pstcData->stcGpios.u8SckPin))
+        {
+            ApolloGpio_GpioInputEnable(pstcData->stcGpios.u8MisoPin,TRUE);
+            ApolloGpio_GpioInputEnable(pstcData->stcGpios.u8SckPin,TRUE);
+            ApolloGpio_GpioOutputEnable(pstcData->stcGpios.u8MosiPin,TRUE);
+            ApolloGpio_GpioOutputEnable(pstcData->stcGpios.u8SckPin,TRUE);
+        }
         enRes = Ok;
+    } else if (pstcData->enInterfaceMode == IomInterfaceModeI2C)
+    {
+        ApolloGpio_GpioInputEnable(pstcData->stcGpios.u8SclPin,TRUE);
+        ApolloGpio_GpioInputEnable(pstcData->stcGpios.u8SdaPin,TRUE);
     }
    
     return enRes;
@@ -503,6 +510,10 @@ en_result_t ApolloIOM_Disable(IOMSTR0_Type* pstcInstance)
         ApolloGpio_GpioInputEnable(pstcData->stcGpios.u8MisoPin,FALSE);
         ApolloGpio_GpioInputEnable(pstcData->stcGpios.u8SckPin,FALSE);
         enRes = Ok;
+    } else if (pstcData->enInterfaceMode == IomInterfaceModeI2C)
+    {
+        ApolloGpio_GpioInputEnable(pstcData->stcGpios.u8SclPin,FALSE);
+        ApolloGpio_GpioInputEnable(pstcData->stcGpios.u8SdaPin,FALSE);
     }
   
     return enRes;
@@ -665,17 +676,27 @@ en_result_t ApolloIOM_Configure(IOMSTR0_Type* pstcInstance, const stc_apolloiom_
     if (pstcInstance == NULL) return ErrorInvalidParameter;
     
     pstcData = GetInternDataPtr(pstcInstance);
-    #if (APOLLOSWSPI_ENABLED == 1)
-       if (pstcInstance == IOMSTR_SWSPI)
-       {
-           return Error;
-       }
-    #endif
+    
+    if (pstcData == NULL) return Error;
        
     pstcData->stcGpios.u8MisoPin = pstcConfig->stcGpios.u8MisoPin;
     pstcData->stcGpios.u8SckPin = pstcConfig->stcGpios.u8SckPin;
     pstcData->stcGpios.u8MosiPin = pstcConfig->stcGpios.u8MosiPin;
     
+    #if (APOLLOSWSPI_ENABLED == 1)
+       if (pstcInstance == IOMSTR_SWSPI)
+       {
+           if (pstcConfig->enInterfaceMode != IomInterfaceModeSpi)
+           {
+               return Error;
+           }
+           ApolloGpio_GpioSelectFunction(pstcData->stcGpios.u8MosiPin,3);
+           ApolloGpio_GpioSelectFunction(pstcData->stcGpios.u8MisoPin,3);
+           ApolloGpio_GpioSelectFunction(pstcData->stcGpios.u8SckPin,3);
+           return Ok;
+       }
+    #endif
+       
     // 
     // pre-check for valid GPIO configuration
     //
@@ -931,7 +952,67 @@ en_result_t ApolloIom_I2cCommand(IOMSTR0_Type* pstcHandle, uint32_t u32Operation
     return Ok;
 }
 
-
+/**
+******************************************************************************
+** \brief  Execute I2C bus reset
+**
+** \param pstcHandle      IOM handle: IOMSTR0 or IOMSTR1 for Apollo, IOMSTR1..5 for Apollo 2
+**
+** \return                Ok, else the error
+**
+******************************************************************************/
+en_result_t ApolloIom_I2cBusReset(IOMSTR0_Type* pstcInstance)
+{
+    uint32_t u32Delay;
+    uint32_t i;
+    stc_apolloiom_intern_data_t* pstcData;
+    if (pstcInstance == NULL) return ErrorInvalidParameter;
+    
+    pstcData = GetInternDataPtr(pstcInstance);
+    
+    if (pstcData == NULL) return Error;
+    
+    if (pstcData->enInterfaceMode != IomInterfaceModeI2C)
+    {
+        return Error;
+    }
+    
+    ApolloIOM_Disable(pstcInstance);
+    ApolloGpio_GpioOutputEnable(pstcData->stcGpios.u8SclPin,FALSE);
+    ApolloGpio_GpioInputEnable(pstcData->stcGpios.u8SclPin,TRUE);
+    
+    ApolloGpio_GpioOutputEnable(pstcData->stcGpios.u8SdaPin,FALSE);
+    ApolloGpio_GpioInputEnable(pstcData->stcGpios.u8SdaPin,TRUE);
+    
+            
+    if (FALSE == ApolloGpio_GpioGet(pstcData->stcGpios.u8SdaPin)) // If someone holds SDA low, generate some dummy clock pulses until line is released
+    {
+        ApolloGpio_GpioOutputEnable(pstcData->stcGpios.u8SclPin,TRUE);
+        ApolloGpio_GpioSet(pstcData->stcGpios.u8SclPin,FALSE);
+      
+        for (i=0; i<9; i++)
+        {
+            u32Delay = 0xffff;
+            while (--u32Delay);
+            ApolloGpio_GpioOutputEnable(pstcData->stcGpios.u8SclPin,TRUE);
+            ApolloGpio_GpioSet(pstcData->stcGpios.u8SclPin,TRUE);
+            u32Delay = 0xffff;
+            while (--u32Delay);
+            ApolloGpio_GpioSet(pstcData->stcGpios.u8SclPin,FALSE);
+            if (FALSE == ApolloGpio_GpioGet(pstcData->stcGpios.u8SdaPin)) break;   // stop if SDA was released meanwhile
+        }
+    }
+    u32Delay = 0xffff;
+    while (--u32Delay) __NOP();
+    ApolloGpio_GpioOutputEnable(pstcData->stcGpios.u8SclPin,TRUE);
+    ApolloGpio_GpioSet(pstcData->stcGpios.u8SclPin,TRUE);
+    ApolloGpio_GpioOutputEnable(pstcData->stcGpios.u8SdaPin,TRUE);
+    ApolloGpio_GpioSet(pstcData->stcGpios.u8SdaPin,TRUE);
+    u32Delay = 0xffff;
+    while (--u32Delay)  __NOP();
+    ApolloIOM_Enable(pstcInstance);
+    return Ok;
+}
 /**
 ******************************************************************************
 ** \brief  Write data via SPI polled
@@ -985,8 +1066,9 @@ en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,
 {
     uint32_t tmp;
     volatile uint32_t u32Timeout;
-
     stc_apolloiom_intern_data_t* pstcData;
+    uint32_t i = 0;
+    i = i;
     
     if (pstcHandle == NULL) return ErrorInvalidParameter;
     
@@ -1012,9 +1094,9 @@ en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,
            {
                ApolloGpio_GpioSet(u32ChipSelect,FALSE);
            }
-           for (tmp = 0;tmp < u32NumBytes;tmp++)
+           for (i = 0;i < u32NumBytes;i++)
            {
-               ApolloIom_SwSpiReadWrite(pstcData->stcGpios.u8MosiPin,pstcData->stcGpios.u8MisoPin,pstcData->stcGpios.u8SckPin,pu8Data[tmp]);
+               ApolloIom_SwSpiReadWrite(pstcData->stcGpios.u8MosiPin,pstcData->stcGpios.u8MisoPin,pstcData->stcGpios.u8SckPin,pu8Data[i],((u32Options & AM_HAL_IOM_LSB_FIRST) != 0));
            }
            if (u32Options & AM_HAL_IOM_CS_LOW)
            {
@@ -1085,8 +1167,9 @@ en_result_t ApolloIom_SpiTransfer(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSele
 {
     uint32_t tmp;
     volatile uint32_t u32Timeout;
-
     stc_apolloiom_intern_data_t* pstcData;
+    uint32_t i = 0;
+    i = i;
     
     if (pstcHandle == NULL) return ErrorInvalidParameter;
     
@@ -1124,9 +1207,9 @@ en_result_t ApolloIom_SpiTransfer(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSele
            {
                ApolloGpio_GpioSet(u32ChipSelect,FALSE);
            }
-           for (tmp = 0;tmp < u32NumBytes;tmp++)
+           for (i = 0;i < u32NumBytes;i++)
            {
-               pu8DataOut[tmp] = ApolloIom_SwSpiReadWrite(pstcData->stcGpios.u8MosiPin,pstcData->stcGpios.u8MisoPin,pstcData->stcGpios.u8SckPin,pu8DataIn[tmp]);
+               pu8DataOut[i] = ApolloIom_SwSpiReadWrite(pstcData->stcGpios.u8MosiPin,pstcData->stcGpios.u8MisoPin,pstcData->stcGpios.u8SckPin,pu8DataIn[i],((u32Options & AM_HAL_IOM_LSB_FIRST) != 0));
            }
            if (u32Options & AM_HAL_IOM_CS_LOW)
            {
@@ -1408,6 +1491,8 @@ en_result_t ApolloIom_SpiRead(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, 
     uint32_t tmp;
     volatile uint32_t u32Timeout;
     stc_apolloiom_intern_data_t* pstcData;
+    uint32_t i = 0;
+    i = i;
     
     if (pstcHandle == NULL) return ErrorInvalidParameter;
     
@@ -1434,9 +1519,9 @@ en_result_t ApolloIom_SpiRead(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, 
            {
                ApolloGpio_GpioSet(u32ChipSelect,FALSE);
            }
-           for (tmp = 0;tmp < u32NumBytes;tmp++)
+           for (i = 0;i < u32NumBytes;i++)
            {
-               pu8Data[tmp] = ApolloIom_SwSpiReadWrite(pstcData->stcGpios.u8MosiPin,pstcData->stcGpios.u8MisoPin,pstcData->stcGpios.u8SckPin,0x00);
+               pu8Data[i] = ApolloIom_SwSpiReadWrite(pstcData->stcGpios.u8MosiPin,pstcData->stcGpios.u8MisoPin,pstcData->stcGpios.u8SckPin,0x00,((u32Options & AM_HAL_IOM_LSB_FIRST) != 0));
            }
            if (u32Options & AM_HAL_IOM_CS_LOW)
            {
@@ -1567,28 +1652,62 @@ en_result_t ApolloIOM_ConfigureSwSpi(IOMSTR0_Type* pstcInstance, uint32_t u32Mos
  **
  ** \param u8DataOut       Data to send
  **
+ ** \param bOrderLsbFirst  LSB First if TRUE
+ **
  ** \return                Data read
  ******************************************************************************/
-uint8_t ApolloIom_SwSpiReadWrite(uint32_t u32MosiPin, uint32_t u32MisoPin, uint32_t u32SckPin, uint8_t u8DataOut)
+uint8_t ApolloIom_SwSpiReadWrite(uint32_t u32MosiPin, uint32_t u32MisoPin, uint32_t u32SckPin, uint8_t u8DataOut, boolean_t bOrderLsbFirst)
 {
-  uint8_t i;
-  uint8_t u8DataIn = 0;
+    int8_t i;
+    uint8_t u8DataIn = 0;
 
-  for (i = 0; i < 8; i++) 
-  {
-        ApolloGpio_GpioSet(u32MosiPin,(u8DataOut & 0x01));
-        u8DataOut = u8DataOut>>1;
-
-        ApolloGpio_GpioSet(u32SckPin,TRUE);
-
-        if (1 == ApolloGpio_GpioGet(u32MisoPin))
+    if (bOrderLsbFirst == FALSE)
+    {
+        for (i = 8; i > 0; i--) 
         {
-            u8DataIn |= (1<<i);
+            if ((1 == ApolloGpio_GpioGet(u32MisoPin)))
+            {
+                u8DataIn |= (1<<(i-1));
+            } 
+            
+            if (u8DataOut & 0x80)
+            {
+                ApolloGpio_GpioSet(u32MosiPin,TRUE);
+            } else 
+            {
+                ApolloGpio_GpioSet(u32MosiPin,FALSE);
+            }
+            u8DataOut = u8DataOut>>1;
+
+            ApolloGpio_GpioSet(u32SckPin,TRUE);
+
+            ApolloGpio_GpioSet(u32SckPin,FALSE);
         }
+    } else
+    {
+        for (i = 0; i < 8; i++) 
+        {
+            if (u8DataOut & 0x01)
+            {
+                ApolloGpio_GpioSet(u32MosiPin,TRUE);
+            } else 
+            {
+                ApolloGpio_GpioSet(u32MosiPin,FALSE);
+            }
+            u8DataOut = u8DataOut>>1;
 
-        ApolloGpio_GpioSet(u32SckPin,FALSE);
-  }
+            ApolloGpio_GpioSet(u32SckPin,TRUE);
+            
+            if ((1 == ApolloGpio_GpioGet(u32MisoPin)))
+            {
+                u8DataIn |= (1<<(i));
+            } 
 
+            ApolloGpio_GpioSet(u32SckPin,FALSE);
+        }
+    }
+
+  
   return u8DataIn;
 }
 #endif
