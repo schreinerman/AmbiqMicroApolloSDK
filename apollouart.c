@@ -1184,6 +1184,11 @@ boolean_t ApolloUart_HasChar(UART_Type* pstcUart)
  *****************************************************************************/
 void ApolloUart_Init(UART_Type* pstcUart,uint32_t u32Baudrate)
 {
+    stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
+    
+    pstcHandle->bRxEnabled = TRUE;
+    pstcHandle->bTxEnabled = TRUE;
+    
     //
     // Enable UART clock in CLKGEN
     //
@@ -1260,7 +1265,7 @@ en_result_t ApolloUart_InitByPin(uint8_t u8RxPin,uint8_t u8TxPin,uint32_t u32Bau
 {
     uint32_t i;
     UART_Type* pstcUart = NULL;
-    
+    stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
     boolean_t bRxDone = FALSE;
     boolean_t bTxDone = FALSE;
     for(i = 0; i < UARTGPIOS_COUNT;i++)
@@ -1271,11 +1276,13 @@ en_result_t ApolloUart_InitByPin(uint8_t u8RxPin,uint8_t u8TxPin,uint32_t u32Bau
             {
                 ApolloGpio_GpioSelectFunction(u8RxPin,stcUartGpios[i].u8Function);
                 pstcUart = stcUartGpios[i].pstcHandle;
+                pstcHandle->stcGpios.i8RxPin = u8RxPin;
                 bRxDone = TRUE;
             } else if ((stcUartGpios[i].u8Gpio == u8TxPin) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeTx))
             {
                 ApolloGpio_GpioSelectFunction(u8TxPin,stcUartGpios[i].u8Function);
                 pstcUart = stcUartGpios[i].pstcHandle;
+                pstcHandle->stcGpios.i8TxPin = u8TxPin;
                 bTxDone = TRUE;
             }
         }
@@ -1319,7 +1326,7 @@ void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcCo
     
     if (pstcConfig->bEnableCts)
     {
-        pstcHandle->stcGpios.i8CtsPin =pstcConfig->stcGpios.u8CtsPin;
+        pstcHandle->stcGpios.i8CtsPin = pstcConfig->stcGpios.u8CtsPin;
     } else
     {
         pstcHandle->stcGpios.i8CtsPin = -1;
