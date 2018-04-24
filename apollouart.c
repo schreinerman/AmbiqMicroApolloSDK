@@ -41,15 +41,18 @@
 /******************************************************************************/
 /** \file ApolloUart.c
  **
- ** A detailed description is available at 
+ ** A detailed description is available at
  ** @link ApolloUartGroup UART routines for Apollo @endlink
  **
  ** History:
  **   - 2016-11-26  V1.0  MSc  First Version
- **   - 2016-04-13  V1.1  MSc  Added IRQs and callbacks
- **   - 2016-05-16  V1.2  MSc  Added Apollo 2 support
- **   - 2016-06-26  V1.3  MSc  Added CMSIS Driver API
- **   - 2016-07-26  V1.4  MSc  Fixed error if CMSIS Driver API is disabled
+ **   - 2017-04-13  V1.1  MSc  Added IRQs and callbacks
+ **   - 2017-05-16  V1.2  MSc  Added Apollo 2 support
+ **   - 2017-06-26  V1.3  MSc  Added CMSIS Driver API
+ **   - 2017-07-26  V1.4  MSc  Fixed error if CMSIS Driver API is disabled
+ **   - 2018-03-15  V1.5  MSc  Fixed interrupt handling
+ **   - 2018-04-24  V1.6  MSc  Added configuration by pin (for Arduino or MBED based SDKs)
+ **                            Added extended configuration options
  *****************************************************************************/
 #define __APOLLOUART_C__
 /*****************************************************************************/
@@ -59,12 +62,14 @@
 #include "stdio.h"
 #include "string.h"
 #include "apolloctimer.h"
-     
+
+#if (APOLLOUART_ENABLED == 1) || (APOLLOUART0_ENABLED == 1) || (APOLLOUART1_ENABLED == 1)
 /*****************************************************************************/
 /* Local pre-processor symbols/macros ('#define')                            */
 /*****************************************************************************/
 
 #define INSTANCE_COUNT (uint32_t)(sizeof(m_astcInstanceDataLut) / sizeof(m_astcInstanceDataLut[0]))
+#define UARTGPIOS_COUNT (uint32_t)(sizeof(stcUartGpios) / sizeof(stcUartGpios[0]))
 
 /*****************************************************************************/
 /* Global variable definitions (declared in header file with 'extern')       */
@@ -87,17 +92,88 @@ static const ARM_DRIVER_VERSION drv_vers = {0x0101,0x0205};
 
 static stc_apollouart_intern_data_t* GetInternDataPtr(UART_Type* pstcIf);
 static void ConfigureBaudrate(UART_Type* pstcUart,uint32_t u32Baudrate, uint32_t u32UartClkFreq);
-static void UARTn_IRQHandler(UART_Type* pstcUart);
 
-
+static const stc_apollouart_gpios_t stcUartGpios[] =
+{
+#if defined(APOLLO_H) || defined(APOLLO1_H)
+    {UART,0,2,ApolloUartGpioTypeTx},
+    {UART,1,2,ApolloUartGpioTypeRx},
+    {UART,5,2,ApolloUartGpioTypeRts},
+    {UART,6,2,ApolloUartGpioTypeCts},
+    {UART,14,2,ApolloUartGpioTypeTx},
+    {UART,15,2,ApolloUartGpioTypeRx},
+    {UART,22,0,ApolloUartGpioTypeTx},
+    {UART,23,0,ApolloUartGpioTypeRx},
+    {UART,35,2,ApolloUartGpioTypeTx},
+    {UART,36,2,ApolloUartGpioTypeRx},
+    {UART,37,2,ApolloUartGpioTypeRts},
+    {UART,38,2,ApolloUartGpioTypeCts},
+    {UART,39,1,ApolloUartGpioTypeTx},
+    {UART,40,1,ApolloUartGpioTypeRx},
+#endif
+    
+#if defined(APOLLO2_H)
+    #if (defined(UART) || defined(UART0)) && ((APOLLOUART0_ENABLED == 1) || (APOLLOUART_ENABLED == 1))
+        {UART0,1,2,ApolloUartGpioTypeTx},
+        {UART0,2,2,ApolloUartGpioTypeRx},
+        {UART0,3,0,ApolloUartGpioTypeRts},
+        {UART0,4,0,ApolloUartGpioTypeCts},
+        {UART0,5,2,ApolloUartGpioTypeRts},
+        {UART0,6,2,ApolloUartGpioTypeCts},
+        {UART0,7,5,ApolloUartGpioTypeTx},
+        {UART0,11,6,ApolloUartGpioTypeRx},
+        {UART0,12,6,ApolloUartGpioTypeCts},
+        {UART0,13,6,ApolloUartGpioTypeRts},
+        {UART0,16,6,ApolloUartGpioTypeTx},
+        {UART0,17,6,ApolloUartGpioTypeRx},
+        {UART0,20,4,ApolloUartGpioTypeTx},
+        {UART0,21,4,ApolloUartGpioTypeRx},
+        {UART0,22,0,ApolloUartGpioTypeTx},
+        {UART0,23,0,ApolloUartGpioTypeRx},
+        {UART0,29,4,ApolloUartGpioTypeCts},
+        {UART0,30,4,ApolloUartGpioTypeTx},
+        {UART0,31,4,ApolloUartGpioTypeRx},
+        {UART0,35,6,ApolloUartGpioTypeRts},
+        {UART0,36,6,ApolloUartGpioTypeCts},
+        {UART0,37,2,ApolloUartGpioTypeRts},
+        {UART0,38,2,ApolloUartGpioTypeCts},
+        {UART0,39,0,ApolloUartGpioTypeTx},
+        {UART0,40,0,ApolloUartGpioTypeRx},
+        {UART0,41,7,ApolloUartGpioTypeRts},
+    #endif
+    #if (defined(UART1)) && (APOLLOUART1_ENABLED == 1)   
+        {UART1,8,6,ApolloUartGpioTypeTx},
+        {UART1,9,6,ApolloUartGpioTypeRx},
+        {UART1,10,5,ApolloUartGpioTypeRts},
+        {UART1,11,5,ApolloUartGpioTypeCts},
+        {UART1,13,7,ApolloUartGpioTypeTx},
+        {UART1,14,7,ApolloUartGpioTypeRx},
+        {UART1,16,7,ApolloUartGpioTypeRts},
+        {UART1,17,7,ApolloUartGpioTypeCts},
+        {UART1,18,6,ApolloUartGpioTypeTx},
+        {UART1,19,6,ApolloUartGpioTypeRx},
+        {UART1,20,5,ApolloUartGpioTypeTx},
+        {UART1,21,5,ApolloUartGpioTypeRx},
+        {UART1,29,5,ApolloUartGpioTypeCts},
+        {UART1,30,5,ApolloUartGpioTypeRts},
+        {UART1,35,2,ApolloUartGpioTypeTx},
+        {UART1,36,2,ApolloUartGpioTypeRx},
+        {UART1,39,2,ApolloUartGpioTypeTx},
+        {UART1,40,2,ApolloUartGpioTypeRx},
+        {UART1,44,0,ApolloUartGpioTypeRts},
+        {UART1,45,0,ApolloUartGpioTypeCts},
+    #endif
+#endif
+};
+    
 /*****************************************************************************
- *   CCCCCC   M         M     SSSSSS    I   SSSSSS  
- *  C         M M     M M    S          I  S         
- *  C         M  M   M  M    S          I  S      
- *  C         M    M    M     SSSSSS    I   SSSSSS  
- *  C         M         M           S   I         S  
- *  C         M         M           S   I         S  
- *   CCCCCC   M         M     SSSSSS    I   SSSSSS  
+ *   CCCCCC   M         M     SSSSSS    I   SSSSSS
+ *  C         M M     M M    S          I  S
+ *  C         M  M   M  M    S          I  S
+ *  C         M    M    M     SSSSSS    I   SSSSSS
+ *  C         M         M           S   I         S
+ *  C         M         M           S   I         S
+ *   CCCCCC   M         M     SSSSSS    I   SSSSSS
  *
  *  >> CMSIS Driver API Start
  *
@@ -111,15 +187,15 @@ static void UARTn_IRQHandler(UART_Type* pstcUart);
     static int32_t Uninitialize(UART_Type* pstcUart);
     static int32_t PowerControl(UART_Type* pstcUart, ARM_POWER_STATE state);
     static int32_t SetModemControl(UART_Type* pstcUart, ARM_USART_MODEM_CONTROL control);
-    
-    #if (defined(UART) || defined(UART0)) && (APOLLOUART0_ENABLED == 1)
+
+    #if (defined(UART) || defined(UART0)) && ((APOLLOUART0_ENABLED == 1) || (APOLLOUART_ENABLED == 1))
         static ARM_USART_CAPABILITIES GetCapabilities_UART0(void);
         static int32_t Initialize_UART0(ARM_USART_SignalEvent_t cb_event);
         static int32_t Uninitialize_UART0(void);
         static int32_t PowerControl_UART0(ARM_POWER_STATE state);
         static int32_t Send_UART0(const void *data, uint32_t num);
         static int32_t Receive_UART0(      void *data, uint32_t num);
-        static int32_t Transfer_UART0(const void *data_out,void *data_in,uint32_t num); 
+        static int32_t Transfer_UART0(const void *data_out,void *data_in,uint32_t num);
         static uint32_t GetTxCount_UART0(void);
         static uint32_t GetRxCount_UART0(void);
         static int32_t Control_UART0(uint32_t control, uint32_t arg);
@@ -144,7 +220,7 @@ static void UARTn_IRQHandler(UART_Type* pstcUart);
         GetModemStatus_UART0
         };
     #endif /* (defined(UART) || defined(UART0)) && (APOLLOUART0_ENABLED == 1) */
-        
+
     #if (defined(UART1)) && (APOLLOUART1_ENABLED == 1)
         static ARM_USART_CAPABILITIES GetCapabilities_UART1(void);
         static int32_t Initialize_UART1(ARM_USART_SignalEvent_t cb_event);
@@ -152,7 +228,7 @@ static void UARTn_IRQHandler(UART_Type* pstcUart);
         static int32_t PowerControl_UART1(ARM_POWER_STATE state);
         static int32_t Send_UART1(const void *data, uint32_t num);
         static int32_t Receive_UART1(      void *data, uint32_t num);
-        static int32_t Transfer_UART1(const void *data_out,void *data_in,uint32_t num); 
+        static int32_t Transfer_UART1(const void *data_out,void *data_in,uint32_t num);
         static uint32_t GetTxCount_UART1(void);
         static uint32_t GetRxCount_UART1(void);
         static int32_t Control_UART1(uint32_t control, uint32_t arg);
@@ -176,18 +252,18 @@ static void UARTn_IRQHandler(UART_Type* pstcUart);
         SetModemControl_UART1,
         GetModemStatus_UART1
         };
-    #endif /* (defined(UART) || defined(UART0)) && (APOLLOUART0_ENABLED == 1) */    
+    #endif /* (defined(UART) || defined(UART0)) && (APOLLOUART0_ENABLED == 1) */
 #endif /* defined(USE_CMSIS_DRIVER) */
 /*****************************************************************************
  *
  * << CMSIS Driver API End
  *
  *****************************************************************************/
-        
-        
-        
-        
-        
+
+
+
+
+
 /// Look-up table for all enabled UART instances and their internal data
 static stc_apollouart_instance_data_t m_astcInstanceDataLut[] =
 {
@@ -195,16 +271,18 @@ static stc_apollouart_instance_data_t m_astcInstanceDataLut[] =
     {   (UART),    // pstcInstance
         { //stc_apollouart_intern_data_t
             NULL, //pfn_apollouart_txnext_t cbTxNext;
-            NULL, //pfn_apollouart_rx_t cbRx;   
+            NULL, //pfn_apollouart_rx_t cbRx;
             FALSE, //bInitialized
+            FALSE, //bRxEnabled
+            FALSE, //bTxEnabled
             0, //u32RegCR
             (3 << UART_LCRH_WLEN_Pos), //u32RegLCRH, default: 8 databits, no parity, 1 stopbit
             9600, //u32Baudrate, default 9600 baud
         #if defined(USE_CMSIS_DRIVER)
             &Driver_UART0,
             NULL, //ARM_USART_SignalEvent pfnCmsisSignalEvent
-            { //ARM_USART_CAPABILITIES u32Capabilities; 
-                    1,//uint32_t asynchronous       : 1;      ///< supports UART (Asynchronous) mode 
+            { //ARM_USART_CAPABILITIES u32Capabilities;
+                    1,//uint32_t asynchronous       : 1;      ///< supports UART (Asynchronous) mode
                     0,//uint32_t synchronous_master : 1;      ///< supports Synchronous Master mode
                     0,//uint32_t synchronous_slave  : 1;      ///< supports Synchronous Slave mode
                     0,//uint32_t single_wire        : 1;      ///< supports UART Single-wire mode
@@ -227,7 +305,7 @@ static stc_apollouart_instance_data_t m_astcInstanceDataLut[] =
                     0,//uint32_t event_ri           : 1;      ///< Signal RI change event: \ref ARM_USART_EVENT_RI
                     0//uint32_t reserved           : 11;     ///< Reserved (must be zero)
             }
-        #endif    
+        #endif
         }
     },
 #endif
@@ -235,16 +313,18 @@ static stc_apollouart_instance_data_t m_astcInstanceDataLut[] =
     { (UART0),   // pstcInstance
     { //stc_apollouart_intern_data_t
             NULL, //pfn_apollouart_txnext_t cbTxNext;
-            NULL, //pfn_apollouart_rx_t cbRx;   
-            FALSE, //bInitialized   
+            NULL, //pfn_apollouart_rx_t cbRx;
+            FALSE, //bInitialized
+            FALSE, //bRxEnabled
+            FALSE, //bTxEnabled
             0, //u32RegCR
             (3 << UART_LCRH_WLEN_Pos), //u32RegLCRH, default: 8 databits, no parity, 1 stopbit
             9600, //u32Baudrate, default 9600 baud
         #if defined(USE_CMSIS_DRIVER)
             &Driver_UART0,
             NULL, //ARM_USART_SignalEvent pfnCmsisSignalEvent
-            { //ARM_USART_CAPABILITIES u32Capabilities; 
-                    1,//uint32_t asynchronous       : 1;      ///< supports UART (Asynchronous) mode 
+            { //ARM_USART_CAPABILITIES u32Capabilities;
+                    1,//uint32_t asynchronous       : 1;      ///< supports UART (Asynchronous) mode
                     0,//uint32_t synchronous_master : 1;      ///< supports Synchronous Master mode
                     0,//uint32_t synchronous_slave  : 1;      ///< supports Synchronous Slave mode
                     0,//uint32_t single_wire        : 1;      ///< supports UART Single-wire mode
@@ -266,8 +346,8 @@ static stc_apollouart_instance_data_t m_astcInstanceDataLut[] =
                     0,//uint32_t event_dcd          : 1;      ///< Signal DCD change event: \ref ARM_USART_EVENT_DCD
                     0,//uint32_t event_ri           : 1;      ///< Signal RI change event: \ref ARM_USART_EVENT_RI
                     0//uint32_t reserved           : 11;     ///< Reserved (must be zero)
-            } 
-        #endif    
+            }
+        #endif
         }
     },
 #endif
@@ -275,16 +355,16 @@ static stc_apollouart_instance_data_t m_astcInstanceDataLut[] =
     { (UART1),   // pstcInstance
     { //stc_apollouart_intern_data_t
             NULL, //pfn_apollouart_txnext_t cbTxNext;
-            NULL, //pfn_apollouart_rx_t cbRx;   
-            FALSE, //bInitialized   
+            NULL, //pfn_apollouart_rx_t cbRx;
+            FALSE, //bInitialized
             0, //u32RegCR
             (3 << UART_LCRH_WLEN_Pos), //u32RegLCRH, default: 8 databits, no parity, 1 stopbit
             9600, //u32Baudrate, default 9600 baud
         #if defined(USE_CMSIS_DRIVER)
             &Driver_UART1,
             NULL, //ARM_USART_SignalEvent pfnCmsisSignalEvent
-            { //ARM_USART_CAPABILITIES Capabilities; 
-                    1,//uint32_t asynchronous       : 1;      ///< supports UART (Asynchronous) mode 
+            { //ARM_USART_CAPABILITIES Capabilities;
+                    1,//uint32_t asynchronous       : 1;      ///< supports UART (Asynchronous) mode
                     0,//uint32_t synchronous_master : 1;      ///< supports Synchronous Master mode
                     0,//uint32_t synchronous_slave  : 1;      ///< supports Synchronous Slave mode
                     0,//uint32_t single_wire        : 1;      ///< supports UART Single-wire mode
@@ -306,12 +386,12 @@ static stc_apollouart_instance_data_t m_astcInstanceDataLut[] =
                     0,//uint32_t event_dcd          : 1;      ///< Signal DCD change event: \ref ARM_USART_EVENT_DCD
                     0,//uint32_t event_ri           : 1;      ///< Signal RI change event: \ref ARM_USART_EVENT_RI
                     0//uint32_t reserved           : 11;     ///< Reserved (must be zero)
-            } 
-        #endif    
+            }
+        #endif
         }
     },
 #endif
-};    
+};
 
 
 /*****************************************************************************/
@@ -319,13 +399,13 @@ static stc_apollouart_instance_data_t m_astcInstanceDataLut[] =
 /*****************************************************************************/
 
 /*****************************************************************************
- *   CCCCCC   M         M     SSSSSS    I   SSSSSS  
- *  C         M M     M M    S          I  S         
- *  C         M  M   M  M    S          I  S      
- *  C         M    M    M     SSSSSS    I   SSSSSS  
- *  C         M         M           S   I         S  
- *  C         M         M           S   I         S  
- *   CCCCCC   M         M     SSSSSS    I   SSSSSS  
+ *   CCCCCC   M         M     SSSSSS    I   SSSSSS
+ *  C         M M     M M    S          I  S
+ *  C         M  M   M  M    S          I  S
+ *  C         M    M    M     SSSSSS    I   SSSSSS
+ *  C         M         M           S   I         S
+ *  C         M         M           S   I         S
+ *   CCCCCC   M         M     SSSSSS    I   SSSSSS
  *
  *  >> CMSIS Driver API Start
  *
@@ -354,7 +434,7 @@ static ARM_USART_STATUS GetStatus(UART_Type* pstcUart)
     ARM_USART_STATUS stat;
     memset((void*)&stat,0,sizeof(stat));
     stat.tx_busy = pstcUart->FR_b.TXFF;
-    stat.rx_busy = pstcUart->FR_b.RXFE;   
+    stat.rx_busy = pstcUart->FR_b.RXFE;
     stat.rx_framing_error = pstcUart->RSR_b.FESTAT;
     stat.rx_parity_error =  pstcUart->RSR_b.PESTAT;
     stat.rx_overflow =  pstcUart->RSR_b.OESTAT;
@@ -389,7 +469,7 @@ static ARM_USART_MODEM_STATUS GetModemStatus(UART_Type* pstcUart)
 static int32_t SetModemControl(UART_Type* pstcUart, ARM_USART_MODEM_CONTROL control)
 {
     stc_apollouart_intern_data_t* pstcIntHandle = GetInternDataPtr(pstcUart);
-  
+
     //not yet implemented
 
    if (control == ARM_USART_RTS_CLEAR) {
@@ -500,9 +580,9 @@ static int32_t Control(UART_Type* pstcUart, uint32_t control, uint32_t arg)
           pstcIntHandle->u32RegCR &= ~(UART_CR_RXE_Msk);
           pstcIntHandle->u32RegCR |= (arg << UART_CR_RXE_Pos);
       }
-      
+
       if (pstcUart->CR_b.UARTEN != bUartEn) pstcUart->CR_b.UARTEN = bUartEn;           //restore old UART enable state
-      
+
       return ARM_DRIVER_OK;
 }
 
@@ -525,7 +605,7 @@ static int32_t Initialize(UART_Type* pstcUart, ARM_USART_SignalEvent_t cb_event)
 #if defined(APOLLO_H) || defined(APOLLO1_H)
     CLKGEN->UARTEN_b.UARTEN = 1;        //enable UART clocking
 #endif
-    
+
     //
     // Enable clock / select clock...
     //
@@ -535,25 +615,25 @@ static int32_t Initialize(UART_Type* pstcUart, ARM_USART_SignalEvent_t cb_event)
     pstcIntHandle->u32RegCR &= ~UART_CR_CLKSEL_Msk;
     pstcIntHandle->u32RegCR |= (1 << UART_CR_CLKEN_Pos);
     pstcIntHandle->u32RegCR |= (1 << UART_CR_CLKSEL_Pos);
-    
+
     //
     // Disable UART before config...
     //
     pstcUart->CR_b.UARTEN = 0;                //disable UART
     pstcUart->CR_b.RXE = 0;                   //disable receiver
     pstcUart->CR_b.TXE = 0;                   //disable transmitter
-    
+
     //
     // Starting UART config...
     //
-    
+
     // initialize baudrate before all other settings, otherwise UART will not be initialized
     SystemCoreClockUpdate();
     ConfigureBaudrate(pstcUart,pstcIntHandle->u32Baudrate,SystemCoreClock);
-    
+
     // initialize line coding...
     pstcUart->LCRH = pstcIntHandle->u32RegLCRH;
-    
+
     //
     // Enable UART after config...
     //
@@ -576,12 +656,12 @@ static int32_t Uninitialize(UART_Type* pstcUart)
     // Disable UART before config...
     //
     pstcUart->CR_b.UARTEN = 0;                //disable UART
-    
+
     //
     // Disable clock
     //
     pstcUart->CR = 0;
-   
+
     //
     // Disable UART clock in CLKGEN
     //
@@ -618,7 +698,7 @@ static int32_t PowerControl(UART_Type* pstcUart, ARM_POWER_STATE state)
 
 
 
-#if (defined(UART0)) && (APOLLOUART0_ENABLED == 1)
+#if (defined(UART0)) && ((APOLLOUART0_ENABLED == 1) || (APOLLOUART_ENABLED == 1))
 /**
   \fn          ARM_USART_CAPABILITIES GetCapabilities_UART0 (void)
   \brief       Get driver capabilities
@@ -963,10 +1043,10 @@ static ARM_USART_MODEM_STATUS GetModemStatus_UART1(void)
 ** \return Pointer to internal data or NULL if instance is not enabled (or not known)
 **
 ******************************************************************************/
-static stc_apollouart_intern_data_t* GetInternDataPtr(UART_Type* pstcIf) 
+static stc_apollouart_intern_data_t* GetInternDataPtr(UART_Type* pstcIf)
 {
     volatile uint32_t u32Instance;
-    
+
     for (u32Instance = 0; u32Instance < INSTANCE_COUNT; u32Instance++)
     {
         if ((uint32_t)pstcIf == (uint32_t)(m_astcInstanceDataLut[u32Instance].pstcInstance))
@@ -974,7 +1054,7 @@ static stc_apollouart_intern_data_t* GetInternDataPtr(UART_Type* pstcIf)
             return &m_astcInstanceDataLut[u32Instance].stcInternData;
         }
     }
-    
+
     return NULL;
 }
 
@@ -996,7 +1076,7 @@ static void ConfigureBaudrate(UART_Type* pstcUart,uint32_t u32Baudrate, uint32_t
     uint32_t u32IntegerDivisor;
     uint32_t u32FractionDivisor;
     uint32_t u32BaudClk;
-    
+
     //
     // Calculate register values.
     //
@@ -1005,7 +1085,7 @@ static void ConfigureBaudrate(UART_Type* pstcUart,uint32_t u32Baudrate, uint32_t
     u64IntermediateLong = (u32UartClkFreq * 64) / u32BaudClk;
     u64FractionDivisorLong = u64IntermediateLong - (u32IntegerDivisor * 64);
     u32FractionDivisor = (uint32_t)u64FractionDivisorLong;
-    
+
     //
     // Integer divisor MUST be greater than or equal to 1.
     //
@@ -1041,7 +1121,7 @@ void ApolloUart_PutChar(UART_Type* pstcUart, uint8_t u8Char)
 
 /**
  ******************************************************************************
- ** \brief  sends a complete string (0-terminated) 
+ ** \brief  sends a complete string (0-terminated)
  **
  ** \param  pstcUart  UART pointer
  **
@@ -1051,7 +1131,7 @@ void ApolloUart_PutChar(UART_Type* pstcUart, uint8_t u8Char)
 void ApolloUart_PutString(UART_Type* pstcUart, char_t *pu8Buffer)
 {
   while (*pu8Buffer != '\0')
-  { 
+  {
     ApolloUart_PutChar(pstcUart,*pu8Buffer++);        // send every char of string
   }
 }
@@ -1064,10 +1144,10 @@ void ApolloUart_PutString(UART_Type* pstcUart, char_t *pu8Buffer)
  **
  ** \return Character or 0xFF (Error) or 0 (Nothing)
  *****************************************************************************/
-uint8_t ApolloUart_GetChar(UART_Type* pstcUart)   
+uint8_t ApolloUart_GetChar(UART_Type* pstcUart)
 {
   uint8_t u8Char;
-  
+
   //
   // Wait for data, i.e. RX FIFO NOT EMPTY.
   //
@@ -1107,10 +1187,10 @@ void ApolloUart_Init(UART_Type* pstcUart,uint32_t u32Baudrate)
     //
     // Enable UART clock in CLKGEN
     //
-#if defined(APOLLO_H) || defined(APOLLO1_H) 
+#if defined(APOLLO_H) || defined(APOLLO1_H)
     CLKGEN->UARTEN_b.UARTEN = 1;        //enable UART clocking
 #endif
-#if defined(APOLLO2_H)    
+#if defined(APOLLO2_H)
     if (pstcUart == UART0)
     {
         CLKGEN->UARTEN_b.UART0EN = 1;        //enable UART clocking
@@ -1128,41 +1208,312 @@ void ApolloUart_Init(UART_Type* pstcUart,uint32_t u32Baudrate)
     pstcUart->CR = 0;
     pstcUart->CR_b.CLKEN = 1;                 //enable clock
     pstcUart->CR_b.CLKSEL = 1;                //use 24MHz clock
-    
+
     //
     // Disable UART before config...
     //
     pstcUart->CR_b.UARTEN = 0;                //enable UART
     pstcUart->CR_b.RXE = 0;                   //enable receiver
     pstcUart->CR_b.TXE = 0;                   //enable transmitter
-    
-    
+
+
     //
     // Starting UART config...
     //
-    
+
     // initialize baudrate before all other settings, otherwise UART will not be initialized
     SystemCoreClockUpdate();
-#if defined(APOLLO_H) || defined(APOLLO1_H) 
+#if defined(APOLLO_H) || defined(APOLLO1_H)
     ConfigureBaudrate(pstcUart,u32Baudrate,SystemCoreClock);
-#else    
-    ConfigureBaudrate(pstcUart,u32Baudrate,SystemCoreClock/2);
+#else
+    ConfigureBaudrate(pstcUart,u32Baudrate,24000000UL);
 #endif
     // initialize line coding...
     pstcUart->LCRH = 0;
     pstcUart->LCRH_b.WLEN = 3;                //3 = 8 data bits (2..0 = 7..5 data bits)
     pstcUart->LCRH_b.STP2 = 0;                //1 stop bit
     pstcUart->LCRH_b.PEN = 0;                 //no parity
+
+
+    //
+    // Enable UART after config...
+    //
+    ApolloUart_Enable(pstcUart);
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Simple init UART by pin and baudrate
+ **
+ ** \param  u8RxPin          RX pin
+ **
+ ** \param  u8TxPin          TX pin
+ **
+ ** \param  u32Baudrate      Baudrate
+ **
+ ** \param  ppstcUart        returns pointer of the found UART
+ **
+ ** \return Ok on success and Error on error
+ **
+ *****************************************************************************/
+en_result_t ApolloUart_InitByPin(uint8_t u8RxPin,uint8_t u8TxPin,uint32_t u32Baudrate, UART_Type** ppstcUart)
+{
+    uint32_t i;
+    UART_Type* pstcUart = NULL;
     
+    boolean_t bRxDone = FALSE;
+    boolean_t bTxDone = FALSE;
+    for(i = 0; i < UARTGPIOS_COUNT;i++)
+    {
+        if ((pstcUart == NULL) || (stcUartGpios[i].pstcHandle == pstcUart)) 
+        {
+            if ((stcUartGpios[i].u8Gpio == u8RxPin) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeRx))
+            {
+                ApolloGpio_GpioSelectFunction(u8RxPin,stcUartGpios[i].u8Function);
+                pstcUart = stcUartGpios[i].pstcHandle;
+                bRxDone = TRUE;
+            } else if ((stcUartGpios[i].u8Gpio == u8TxPin) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeTx))
+            {
+                ApolloGpio_GpioSelectFunction(u8TxPin,stcUartGpios[i].u8Function);
+                pstcUart = stcUartGpios[i].pstcHandle;
+                bTxDone = TRUE;
+            }
+        }
+        if ((bRxDone) && (bTxDone))
+        {
+            if (ppstcUart != NULL)
+            {
+                *ppstcUart = pstcUart;
+            }
+            ApolloUart_Init(pstcUart,u32Baudrate);
+            return Ok;
+        }
+    }
+    return Error;
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Init UART with extended settings
+ **
+ ** \param  pstcUart         UART pointer
+ **
+ ** \param  pstcConfig       Configuration
+ **
+ *****************************************************************************/
+void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcConfig)
+{
+    stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
+    
+    pstcHandle->u32Baudrate = pstcConfig->u32Baudrate;
+    pstcHandle->bRxEnabled = pstcConfig->bEnableRx;
+    pstcHandle->bTxEnabled = pstcConfig->bEnableTx;
+    
+    if (pstcConfig->bEnableRts)
+    {
+        pstcHandle->stcGpios.i8RtsPin = pstcConfig->stcGpios.u8RtsPin;
+    } else
+    {
+         pstcHandle->stcGpios.i8RtsPin = -1;
+    }
+    
+    if (pstcConfig->bEnableCts)
+    {
+        pstcHandle->stcGpios.i8CtsPin =pstcConfig->stcGpios.u8CtsPin;
+    } else
+    {
+        pstcHandle->stcGpios.i8CtsPin = -1;
+    }
+    
+    if (pstcConfig->bEnableRx)
+    {
+        pstcHandle->stcGpios.i8RxPin = pstcConfig->stcGpios.u8RxPin;
+    } else
+    {
+        pstcHandle->stcGpios.i8RxPin = -1;
+    }
+    
+    if (pstcConfig->bEnableTx)
+    {
+        pstcHandle->stcGpios.i8RxPin = pstcConfig->stcGpios.u8TxPin;
+    } else
+    {
+        pstcHandle->stcGpios.i8RxPin = -1;
+    }
+    
+    //
+    // Enable UART clock in CLKGEN
+    //
+#if defined(APOLLO_H) || defined(APOLLO1_H)
+    CLKGEN->UARTEN_b.UARTEN = 1;        //enable UART clocking
+#endif
+#if defined(APOLLO2_H)
+    if (pstcUart == UART0)
+    {
+        CLKGEN->UARTEN_b.UART0EN = 1;        //enable UART clocking
+        PWRCTRL->DEVICEEN |= (1 << PWRCTRL_DEVICEEN_UART0_Pos);
+    }
+    if (pstcUart == UART1)
+    {
+        CLKGEN->UARTEN_b.UART1EN = 1;        //enable UART clocking
+        PWRCTRL->DEVICEEN |= (1 << PWRCTRL_DEVICEEN_UART1_Pos);
+    }
+#endif
+    //
+    // Enable clock / select clock...
+    //
+    pstcUart->CR = 0;
+    pstcUart->CR_b.CLKEN = 1;                 //enable clock
+    pstcUart->CR_b.CLKSEL = 1;                //use 24MHz clock
+
+    //
+    // Disable UART before config...
+    //
+    pstcUart->CR_b.UARTEN = 0;                //enable UART
+    pstcUart->CR_b.RXE = 0;                   //enable receiver
+    pstcUart->CR_b.TXE = 0;                   //enable transmitter
+
+
+    //
+    // Starting UART config...
+    //
+
+    // initialize baudrate before all other settings, otherwise UART will not be initialized
+    SystemCoreClockUpdate();
+#if defined(APOLLO_H) || defined(APOLLO1_H)
+    ConfigureBaudrate(pstcUart,pstcConfig->u32Baudrate,SystemCoreClock);
+#else
+    ConfigureBaudrate(pstcUart,pstcConfig->u32Baudrate,SystemCoreClock/2);
+#endif
+    // initialize line coding...
+    pstcUart->LCRH = 0;
+    
+    switch(pstcConfig->enDataLen)
+    {
+      case ApolloUartWlen5Bit:
+        pstcUart->LCRH_b.WLEN = 0;
+        break;
+      case ApolloUartWlen6Bit:
+        pstcUart->LCRH_b.WLEN = 1;
+        break;
+      case ApolloUartWlen7Bit:
+        pstcUart->LCRH_b.WLEN = 2;
+        break;
+      case ApolloUartWlen8Bit:
+        pstcUart->LCRH_b.WLEN = 3;
+        break;
+    }
+    
+    if (pstcConfig->enStopBit == ApolloUartStop2)
+    {
+        pstcUart->LCRH_b.STP2 = 1;                //2 stop bit
+    }
+    else
+    {
+        pstcUart->LCRH_b.STP2 = 0;                //1 stop bit
+    }
+    
+    switch(pstcConfig->enParity)
+    {
+      case ApolloUartParityNone:
+        pstcUart->LCRH_b.PEN = 0;                 //no parity
+        break;
+      case ApolloUartParityOdd:
+        pstcUart->LCRH_b.EPS = 0;                 //odd parity
+        break;
+      case ApolloUartParityEven:
+        pstcUart->LCRH_b.EPS = 1;                 //even parity
+        break;
+    }
+    
+    pstcUart->LCRH_b.BRK = pstcConfig->bEnableBreak;
+    
+    pstcUart->CR_b.LBE = pstcConfig->bEnableLoopback;
+
+    pstcUart->CR_b.RTSEN = pstcConfig->bEnableRts;
+    
+    pstcUart->CR_b.CTSEN = pstcConfig->bEnableCts;
+    
+    ApolloUart_InitGpios(pstcUart);
     
     //
     // Enable UART after config...
     //
-    pstcUart->CR_b.UARTEN = 1;                //enable UART
-    pstcUart->CR_b.RXE = 1;                   //enable receiver
-    pstcUart->CR_b.TXE = 1;                   //enable transmitter
-    
+    ApolloUart_Enable(pstcUart);
+};
 
+/**
+ ******************************************************************************
+ ** \brief  Enable UART
+ **
+ ** \param  pstcUart         UART pointer
+ **
+ *****************************************************************************/
+
+void ApolloUart_Enable(UART_Type* pstcUart)
+{
+    stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
+    //
+    // Enable UART after config...
+    //
+    pstcUart->CR_b.UARTEN = 1;                    //enable UART
+    pstcUart->CR_b.RXE = pstcHandle->bRxEnabled;
+    pstcUart->CR_b.TXE = pstcHandle->bTxEnabled;
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Disable UART
+ **
+ ** \param  pstcUart         UART pointer
+ **
+ *****************************************************************************/
+
+void ApolloUart_Disable(UART_Type* pstcUart)
+{
+    stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
+    //
+    // Enable UART after config...
+    //
+    pstcUart->CR_b.RXE = 0;
+    pstcUart->CR_b.TXE = 0;
+    pstcUart->CR_b.UARTEN = 0;                    //enable UART
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Init UART GPIOs
+ **
+ ** \param  pstcUart         UART pointer
+ **
+ *****************************************************************************/
+void ApolloUart_InitGpios(UART_Type* pstcUart)
+{
+    uint32_t i;
+    stc_apollouart_intern_data_t* pstcInternHandle = GetInternDataPtr(pstcUart);
+    
+    for(i = 0; i < UARTGPIOS_COUNT;i++)
+    {
+        if (stcUartGpios[i].pstcHandle == pstcUart)
+        {
+            if ((pstcInternHandle->stcGpios.i8CtsPin != -1) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeCts) && (stcUartGpios[i].u8Gpio == pstcInternHandle->stcGpios.i8CtsPin))
+            {
+                ApolloGpio_GpioSelectFunction(stcUartGpios[i].u8Gpio,stcUartGpios[i].u8Function);
+            }
+            if ((pstcInternHandle->stcGpios.i8RtsPin != -1) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeRts) && (stcUartGpios[i].u8Gpio == pstcInternHandle->stcGpios.i8RtsPin))
+            {
+                ApolloGpio_GpioSelectFunction(stcUartGpios[i].u8Gpio,stcUartGpios[i].u8Function);
+            }
+            if ((pstcInternHandle->stcGpios.i8RxPin != -1) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeRx) && (stcUartGpios[i].u8Gpio == pstcInternHandle->stcGpios.i8RxPin))
+            {
+                ApolloGpio_GpioSelectFunction(stcUartGpios[i].u8Gpio,stcUartGpios[i].u8Function);
+            }
+            if ((pstcInternHandle->stcGpios.i8TxPin != -1) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeTx) && (stcUartGpios[i].u8Gpio == pstcInternHandle->stcGpios.i8TxPin))
+            {
+                ApolloGpio_GpioSelectFunction(stcUartGpios[i].u8Gpio,stcUartGpios[i].u8Function);
+            }
+        }
+    }
 }
 
 /**
@@ -1199,25 +1550,46 @@ void ApolloUart_RegisterCallbacks(UART_Type* pstcUart,pfn_apollouart_txnext_t cb
     #if defined(UART) && ((APOLLOUART0_ENABLED == 1) || (APOLLOUART_ENABLED == 1))
     if (pstcUart == UART)
     {
-        NVIC_ClearPendingIRQ(UART_IRQn);    //clear pending flag for UART
-        NVIC_EnableIRQ(UART_IRQn);          //enable IRQ
-        NVIC_SetPriority(UART_IRQn,1);      //set priority of UART IRQ, smaller value means higher priority
+        if ((cbTxNext == NULL) && (cbRx == NULL))
+        {
+            NVIC_ClearPendingIRQ(UART_IRQn);    //clear pending flag for UART
+            NVIC_DisableIRQ(UART_IRQn);         //disable IRQ
+        } else
+        {
+            NVIC_ClearPendingIRQ(UART_IRQn);    //clear pending flag for UART
+            NVIC_EnableIRQ(UART_IRQn);          //enable IRQ
+            NVIC_SetPriority(UART_IRQn,1);      //set priority of UART IRQ, smaller value means higher priority
+        }
     }
     #endif
     #if defined(UART0) && (APOLLOUART0_ENABLED == 1)
     if (pstcUart == UART0)
     {
-        NVIC_ClearPendingIRQ(UART0_IRQn);    //clear pending flag for UART
-        NVIC_EnableIRQ(UART0_IRQn);          //enable IRQ
-        NVIC_SetPriority(UART0_IRQn,1);      //set priority of UART IRQ, smaller value means higher priority
+        if ((cbTxNext == NULL) && (cbRx == NULL))
+        {
+            NVIC_ClearPendingIRQ(UART0_IRQn);    //clear pending flag for UART
+            NVIC_DisableIRQ(UART0_IRQn);         //disable IRQ
+        } else
+        {
+            NVIC_ClearPendingIRQ(UART0_IRQn);    //clear pending flag for UART
+            NVIC_EnableIRQ(UART0_IRQn);          //enable IRQ
+            NVIC_SetPriority(UART0_IRQn,1);      //set priority of UART IRQ, smaller value means higher priority
+        }
     }
     #endif
     #if defined(UART1) && (APOLLOUART1_ENABLED == 1)
     if (pstcUart == UART1)
     {
-        NVIC_ClearPendingIRQ(UART1_IRQn);    //clear pending flag for UART
-        NVIC_EnableIRQ(UART1_IRQn);          //enable IRQ
-        NVIC_SetPriority(UART1_IRQn,1);      //set priority of UART IRQ, smaller value means higher priority
+        if ((cbTxNext == NULL) && (cbRx == NULL))
+        {
+            NVIC_ClearPendingIRQ(UART1_IRQn);    //clear pending flag for UART
+            NVIC_DisableIRQ(UART1_IRQn);         //disable IRQ
+        } else
+        {
+            NVIC_ClearPendingIRQ(UART1_IRQn);    //clear pending flag for UART
+            NVIC_EnableIRQ(UART1_IRQn);          //enable IRQ
+            NVIC_SetPriority(UART1_IRQn,1);      //set priority of UART IRQ, smaller value means higher priority
+        }
     }
     #endif
 }
@@ -1227,7 +1599,7 @@ void ApolloUart_RegisterCallbacks(UART_Type* pstcUart,pfn_apollouart_txnext_t cb
  ** \brief  Send data polled (blocking)
  **
  ** \param  pstcUart         UART pointer
- ** 
+ **
  ** \param  pu8Data          Databuffer to send
  **
  ** \param u32Size           Size of Data
@@ -1250,7 +1622,7 @@ void ApolloUart_SendPolled(UART_Type* pstcUart, uint8_t* pu8Data,uint32_t u32Siz
  ** \brief  Receive data polled (blocking, no timeout feature!)
  **
  ** \param  pstcUart         UART pointer
- ** 
+ **
  ** \param  pu8Data          Databuffer to receive
  **
  ** \param u32Size           Size of Data
@@ -1273,9 +1645,9 @@ void ApolloUart_ReceivePolled(UART_Type* pstcUart, uint8_t* pu8Data,uint32_t u32
  ** \brief  Asynchrounous receive and send data (experimental)
  **
  ** \param  pstcUart         UART pointer
- ** 
+ **
  ** \param  pu8DataOut       Databuffer to send
- ** 
+ **
  ** \param  pu8DataIn        Databuffer to receive
  **
  ** \param u32Size           Size of Data
@@ -1292,7 +1664,7 @@ void ApolloUart_TransferPolled(UART_Type* pstcUart, uint8_t* pu8DataOut,uint8_t*
         pstcUart->DR = pu8DataOut[i];
         while(pstcUart->FR_b.RXFE) __NOP();
         pu8DataIn[i] = pstcUart->DR;
-        
+
     }
 }
 
@@ -1344,7 +1716,7 @@ boolean_t ApolloUart_NewTxDataEnabled(UART_Type* pstcUart)
         {
             return TRUE;
         }
-    } 
+    }
     return FALSE;
 }
 
@@ -1361,7 +1733,7 @@ boolean_t ApolloUart_NewTxDataEnabled(UART_Type* pstcUart)
  *****************************************************************************/
 void UART_IRQHandler(void)
 {
-    UARTn_IRQHandler(UART);
+    ApolloUart_UARTn_IRQHandler(UART);
 }
 #endif
 
@@ -1373,7 +1745,7 @@ void UART_IRQHandler(void)
  *****************************************************************************/
 void UART0_IRQHandler(void)
 {
-    UARTn_IRQHandler(UART0);
+    ApolloUart_UARTn_IRQHandler(UART0);
 }
 #endif
 
@@ -1385,7 +1757,7 @@ void UART0_IRQHandler(void)
  *****************************************************************************/
 void UART1_IRQHandler(void)
 {
-    UARTn_IRQHandler(UART1);
+    ApolloUart_UARTn_IRQHandler(UART1);
 }
 #endif
 
@@ -1396,7 +1768,7 @@ void UART1_IRQHandler(void)
  ** \param pstcUart UART Handle
  **
  *****************************************************************************/
-static void UARTn_IRQHandler(UART_Type* pstcUart)
+void ApolloUart_UARTn_IRQHandler(UART_Type* pstcUart)
 {
     int16_t i16ret;
     uint32_t u32Status;
@@ -1409,9 +1781,13 @@ static void UARTn_IRQHandler(UART_Type* pstcUart)
         {
             pstcHandle->cbRx(pstcUart->DR);
         }
+        pstcUart->IEC_b.RXIC = 1;
+        u32Status &= ~(1 << 4);
     }
     if (pstcUart->IES_b.TXRIS)
     {
+        pstcUart->IEC_b.TXIC = 1;
+        u32Status &= ~(1 << 5);
         if (pstcHandle->cbTxNext != NULL)
         {
             i16ret = pstcHandle->cbTxNext();
@@ -1425,10 +1801,178 @@ static void UARTn_IRQHandler(UART_Type* pstcUart)
             }
         }
     }
-    
+
+    //clear all other interrupts
     pstcUart->IEC = u32Status;
 }
 
+#if UART_SEMIHOST_ENABLED == 1
+
+#if !defined(UART_SEMIHOST)
+#error please define UART_SEMIHOST in RTE_Device.h
+#endif
+
+#if  defined(__CC_ARM)
+/**
+ ******************************************************************************
+ ** \brief Low Level for stdio for ARM / Keil µVision
+ **
+ ******************************************************************************/
+
+int ferror(FILE *f) {
+  /* Your implementation of ferror */
+  return 0;
+}
+
+void _ttywrch(int c) {
+    ApolloUart_PutChar(UART_SEMIHOST,(char_t)c);
+}
+
+void _sys_exit(int return_code) {
+    while(1);  /* endless loop */
+}
+
+int fputc(int c, FILE *f) {
+    ApolloUart_PutChar(UART_SEMIHOST,(char_t)c);
+    return 0;
+}
+
+
+int fgetc(FILE *f) {
+    char_t c;
+    c = ApolloUart_GetChar(UART_SEMIHOST);
+    return (c);
+}
+
+#elif defined(__ICCARM__)
+/**
+ ******************************************************************************
+ ** \brief Low Level for stdio for IAR EWARM
+ **
+ ******************************************************************************/
+
+int putchar(int ch)
+{
+   ApolloUart_PutChar(UART_SEMIHOST,(char_t)ch);
+   return ch;
+}
+
+int __close(int fileno)
+{
+    return 0;
+}
+int __write(int fileno, char *buf, unsigned int size)
+{
+     ApolloUart_SendPolled(UART_SEMIHOST,(uint8_t*)buf,size);
+    return 0;
+}
+int __read(int fileno, char *buf, unsigned int size)
+{
+    ApolloUart_ReceivePolled(UART_SEMIHOST,(uint8_t*)buf,size);
+    return 0;
+}
+
+#elif defined(__GNUC__)
+
+/**
+ ******************************************************************************
+ ** \brief Low Level for stdio for GNU GCC
+ **
+ ******************************************************************************/
+
+int _read_r (struct _reent *r, int file, char * ptr, int len)
+{
+  r = r;
+  file = file;
+  ApolloUart_ReceivePolled(UART_SEMIHOST,(uint8_t*)ptr,len);
+  return 0;
+}
+
+
+int _lseek_r (struct _reent *r, int file, int ptr, int dir)
+{
+  r = r;
+  file = file;
+  ptr = ptr;
+  dir = dir;
+  return 0;
+}
+
+
+int _write (int file, char * ptr, int len)
+{
+  file = file;
+  ptr = ptr;
+  ApolloUart_SendPolled(UART_SEMIHOST,(uint8_t*)ptr,(uint32_t)len);
+
+  return 0;
+
+}
+
+int _close_r (struct _reent *r, int file)
+{
+  return 0;
+}
+
+/* Register name faking - works in collusion with the linker.  */
+register char * stack_ptr asm ("sp");
+
+caddr_t _sbrk_r (struct _reent *r, int incr)
+{
+  extern char   end asm ("end"); /* Defined by the linker.  */
+  static char * heap_end;
+  char *        prev_heap_end;
+
+  if (heap_end == NULL)
+    heap_end = & end;
+
+  prev_heap_end = heap_end;
+
+  if (heap_end + incr > stack_ptr)
+  {
+      /* Some of the libstdc++-v3 tests rely upon detecting
+        out of memory errors, so do not abort here.  */
+#if 0
+      extern void abort (void);
+
+      _write (1, "_sbrk: Heap and stack collision\n", 32);
+
+      abort ();
+#else
+      return (caddr_t) -1;
+#endif
+  }
+
+  heap_end += incr;
+
+  return (caddr_t) prev_heap_end;
+}
+
+#endif
+
+#if    HEAP_SIZE
+extern  char   *sbrk(int size)
+{
+   if (brk_siz + size > _heap_size || brk_siz + size < 0)
+        return((char*)-1);
+   brk_siz += size;
+   return( (char *)_heap + brk_siz - size);
+}
+#endif
+
+
+#if    HEAP_SIZE
+    static   long        brk_siz = 0;
+    typedef  int         _heap_t;
+    #define ROUNDUP(s)   (((s)+sizeof(_heap_t)-1)&~(sizeof(_heap_t)-1))
+    static   _heap_t     _heap[ROUNDUP(HEAP_SIZE)/sizeof(_heap_t)];
+    #define              _heap_size       ROUNDUP(HEAP_SIZE)
+#else
+    extern  char         *_heap;
+    extern  long         _heap_size;
+#endif
+
+#endif
 /**
  ******************************************************************************
  ** \brief Deinitialization Routine
@@ -1438,6 +1982,8 @@ void Uart_Deinit(void)
 {
 
 }
+
+#endif //(APOLLOUART_ENABLED == 1) || (APOLLOUART0_ENABLED == 1) || (APOLLOUART1_ENABLED == 1)
 
 /******************************************************************************/
 /* EOF (not truncated)                                                        */

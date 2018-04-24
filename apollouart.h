@@ -51,6 +51,8 @@
  **   - 2017-06-26  V1.3  MSc  Added CMSIS Driver API
  **   - 2017-07-26  V1.4  MSc  Fixed error if CMSIS Driver API is disabled
  **   - 2017-10-17  V1.5  MSc  Fixed for Apollo2 UARTEN in initialization
+ **   - 2018-04-24  V1.6  MSc  Added configuration by pin (for Arduino or MBED based SDKs)
+ **                            Added extended configuration options
  **
  *****************************************************************************/
 
@@ -65,19 +67,35 @@ extern "C"
     
 /**
  ******************************************************************************
- ** \defgroup MetrahitUltraGroup Driving a 8x8 matrix with MAX7219 chipset via SPI
+ ** \defgroup ApolloUartGroup UART routines for Apollo
  **
- ** Provided functions of Driving a 8x8 matrix with MAX7219 chipset via SPI:
+ ** Provided functions of UART routines for Apollo:
  ** 
- ** - ApolloUart_Init()
- ** - ApolloUart_Deinit()
+ ** - ApolloUart_Init()               - simple init UART by baudrate
+ ** - ApolloUart_InitExtended()       - init UART with extended settings
+ ** - ApolloUart_InitByPin()          - init UART by GPIO pin and returns UART handle
+ ** - ApolloUart_InitGpios()          - init UART GPIOs (done by init automatically)
+ ** - ApolloUart_Enable()             - enable UART (done by init automatically)
+ ** - ApolloUart_Disable()            - disable UART
+ ** - ApolloUart_PutChar()            - put char
+ ** - ApolloUart_PutString()          - put string
+ ** - ApolloUart_GetChar()            - get char
+ ** - ApolloUart_HasChar()            - check UART has data
+ ** - ApolloUart_RegisterCallbacks()  - register callback
+ ** - ApolloUart_NewTxData()          - get data via cbTxNext() callback and initiate sending data
+ ** - ApolloUart_NewTxDataEnabled()   - check TX IRQ is enabled
+ ** - ApolloUart_Deinit()             - deinit UART
+ ** - ApolloUart_SendPolled()         - send buffer polled
+ ** - ApolloUart_ReceivePolled()      - receive buffer polled
+ ** - ApolloUart_TransferPolled()     - send/received data polled
+ ** - ApolloUart_UARTn_IRQHandler()   - execute IRQ handling from OS 
  **   
  ******************************************************************************/
 //@{
 
 /**
  ******************************************************************************    
- ** \page metrahitultra_module_includes Required includes in main application
+ ** \page apollouart_module_includes Required includes in main application
  ** \brief Following includes are required
  ** @code   
  ** #include "apollouart.h"   
@@ -326,6 +344,8 @@ typedef struct stc_apollouart_intern_data
     pfn_apollouart_txnext_t cbTxNext;
     pfn_apollouart_rx_t cbRx;   
     boolean_t bInitialized;
+    boolean_t bRxEnabled;
+    boolean_t bTxEnabled;
     uint32_t u32RegCR;
     uint32_t u32RegLCRH;
     uint32_t u32Baudrate;
@@ -334,7 +354,78 @@ typedef struct stc_apollouart_intern_data
     ARM_USART_SignalEvent_t pfnCmsisSignalEvent;
     ARM_USART_CAPABILITIES Capabilities;    
     #endif    
+    struct 
+    {
+        int8_t i8RxPin;
+        int8_t i8TxPin;
+        int8_t i8CtsPin;
+        int8_t i8RtsPin;
+    } stcGpios;
 } stc_apollouart_intern_data_t;
+
+typedef enum en_apollouart_wlen
+{
+   ApolloUartWlen5Bit = 0,
+   ApolloUartWlen6Bit = 1,
+   ApolloUartWlen7Bit = 2,
+   ApolloUartWlen8Bit = 3
+} en_apollouart_wlen_t;
+
+typedef enum en_apollouart_stop
+{
+    ApolloUartStop1 = 0,
+    ApolloUartStop2 = 1
+} en_apollouart_stop_t;
+
+typedef enum en_apollouart_parity
+{
+    ApolloUartParityNone = 0,
+    ApolloUartParityOdd = 1,
+    ApolloUartParityEven = 3,
+} en_apollouart_parity_t;
+
+typedef struct stc_apollouart_config
+{
+    uint32_t u32Baudrate;
+    en_apollouart_wlen_t enDataLen;
+    en_apollouart_stop_t enStopBit;
+    en_apollouart_parity_t enParity;
+    uint32_t bEnableBreak       : 1;
+    uint32_t bEnableLoopback    : 1;
+    uint32_t bEnableFifo        : 1;
+    uint32_t bEnableRx          : 1;
+    uint32_t bEnableTx          : 1;
+    uint32_t bEnableCts         : 1;
+    uint32_t bEnableRts         : 1;
+    uint32_t bEnableSirLowPower : 1;
+    uint32_t bEnableSir         : 1;
+    struct 
+    {
+        uint8_t u8RxPin;
+        uint8_t u8TxPin;
+        uint8_t u8CtsPin;
+        uint8_t u8RtsPin;
+    } stcGpios;
+} stc_apollouart_config_t;
+    
+typedef enum en_apollouart_gpiotype
+{
+    ApolloUartGpioTypeTx = 0,
+    ApolloUartGpioTypeRx = 1,
+    ApolloUartGpioTypeRts = 2,
+    ApolloUartGpioTypeCts = 3,
+} en_apollouart_gpiotype_t;
+
+typedef struct stc_apollouart_gpios
+{
+    UART_Type* pstcHandle;
+    uint8_t u8Gpio;
+    uint8_t u8Function;
+    en_apollouart_gpiotype_t enUartType;
+} stc_apollouart_gpios_t;
+
+
+
 
 /// ApolloUart module internal data, storing internal information for each UART instance.
 typedef struct stc_apollouart_instance_data
@@ -347,7 +438,7 @@ typedef struct stc_apollouart_instance_data
 /* Global variable declarations ('extern', definition in C source)           */
 /*****************************************************************************/
 #if defined(USE_CMSIS_DRIVER)
-    #if (defined(UART) || defined(UART0)) && (APOLLOUART0_ENABLED == 1)
+    #if (defined(UART) || defined(UART0)) && ((APOLLOUART0_ENABLED == 1) || (APOLLOUART_ENABLED == 1))
         extern ARM_DRIVER_USART Driver_UART0;
     #endif
 
@@ -361,6 +452,11 @@ typedef struct stc_apollouart_instance_data
 /*****************************************************************************/
 
 void ApolloUart_Init(UART_Type* pstcUart,uint32_t u32Baudrate);
+void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcConfig);
+en_result_t ApolloUart_InitByPin(uint8_t u8RxPin,uint8_t u8TxPin,uint32_t u32Baudrate, UART_Type** ppstcUart);
+void ApolloUart_InitGpios(UART_Type* pstcUart);
+void ApolloUart_Enable(UART_Type* pstcUart);
+void ApolloUart_Disable(UART_Type* pstcUart);
 void ApolloUart_PutChar(UART_Type* pstcUart, uint8_t u8Char);
 void ApolloUart_PutString(UART_Type* pstcUart, char_t *pu8Buffer);
 uint8_t ApolloUart_GetChar(UART_Type* pstcUart);
@@ -372,6 +468,7 @@ void ApolloUart_Deinit(void);
 void ApolloUart_SendPolled(UART_Type* pstcUart, uint8_t* pu8Data,uint32_t u32Size);
 void ApolloUart_ReceivePolled(UART_Type* pstcUart, uint8_t* pu8Data,uint32_t u32Size);
 void ApolloUart_TransferPolled(UART_Type* pstcUart, uint8_t* pu8DataOut,uint8_t* pu8DataIn,uint32_t u32Size);
+void ApolloUart_UARTn_IRQHandler(UART_Type* pstcUart);
 
 #ifdef __cplusplus
 }
