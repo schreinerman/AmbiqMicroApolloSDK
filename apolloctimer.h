@@ -37,9 +37,11 @@ so agrees to indemnify Fujitsu against all liability.
  ** @link ApolloCTimerGroup Apollo CTIMER Implementation description @endlink
  **
  ** History:
- **   - 2017-05-16  V1.0  MSc  First Version
- **   - 2017-06-20  V1.1  MSc  Updated general initialization routine
- **   - 2017-10-17  V1.2  MSc  Fixed wrong register in duty update for CTIMERB0 Apollo2
+ **   - 2017-05-16  V1.0  Manuel Schreiner   First Version
+ **   - 2017-06-20  V1.1  Manuel Schreiner   Updated general initialization routine
+ **   - 2018-07-06  V1.2  Manuel Schreiner   Updated documentation, 
+ **                                          now part of the FEEU ClickBeetle(TM) SW Framework
+ **                                          added high/low state using level and no PWM
  **
  *****************************************************************************/
 #ifndef __APOLLOCTIMER_H__
@@ -53,7 +55,7 @@ extern "C"
 
 /**
  ******************************************************************************
- ** \defgroup ApolloCTimerGroup Apollo CTIMER Implementation
+ ** \defgroup ApolloCTimerGroup  Low-Level-Driver for Apollo 1/2 CTIMER
  **
  ** Provided functions of ApolloCTimer:
  ** 
@@ -126,24 +128,17 @@ extern "C"
 /* Global type definitions ('typedef')                                        */
 /*****************************************************************************/
 
-/* ========================================  Start of section using anonymous unions  ======================================== */
-#if defined (__CC_ARM)
+#if defined(__CC_ARM)
   #pragma push
   #pragma anon_unions
-#elif defined (__ICCARM__)
+#elif defined(__ICCARM__)
   #pragma language=extended
-#elif defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
-  #pragma clang diagnostic push
-  #pragma clang diagnostic ignored "-Wc11-extensions"
-  #pragma clang diagnostic ignored "-Wreserved-id-macro"
-#elif defined (__GNUC__)
+#elif defined(__GNUC__)
   /* anonymous unions are enabled by default */
-#elif defined (__TMS470__)
-  /* anonymous unions are enabled by default */
-#elif defined (__TASKING__)
+#elif defined(__TMS470__)
+/* anonymous unions are enabled by default */
+#elif defined(__TASKING__)
   #pragma warning 586
-#elif defined (__CSMC__)
-  /* anonymous unions are enabled by default */
 #else
   #warning Not supported compiler type
 #endif
@@ -268,21 +263,18 @@ typedef struct stc_apolloctimer_timer {
 } stc_apolloctimer_timer_t;
 #endif
 
-/* =========================================  End of section using anonymous unions  ========================================= */
-#if defined (__CC_ARM)
+#if defined(__CC_ARM)
   #pragma pop
-#elif defined (__ICCARM__)
+#elif defined(__ICCARM__)
   /* leave anonymous unions enabled */
-#elif (__ARMCC_VERSION >= 6010050)
-  #pragma clang diagnostic pop
-#elif defined (__GNUC__)
+#elif defined(__GNUC__)
   /* anonymous unions are enabled by default */
-#elif defined (__TMS470__)
+#elif defined(__TMS470__)
   /* anonymous unions are enabled by default */
-#elif defined (__TASKING__)
+#elif defined(__TASKING__)
   #pragma warning restore
-#elif defined (__CSMC__)
-  /* anonymous unions are enabled by default */
+#else
+  #warning Not supported compiler type
 #endif
 
 typedef enum en_apolloctimer_ab
@@ -365,11 +357,13 @@ extern const stc_apolloctimer_timer_ab_t stcCTimerB3;
 #if (APOLLOGPIO_ENABLED == 1)
 void ApolloCTimer_PwmInitByPin(int pin);
 void ApolloCTimer_PwmSetDutyByPin(int pin, float32_t f32Duty);
+void ApolloCTimer_DisableByPin(int pin);
 #endif
 void ApolloCTimer_PwmInit(stc_apolloctimer_timer_ab_t* pstcHandle);
 void ApolloCTimer_PwmSetDuty(stc_apolloctimer_timer_ab_t* pstcHandle, float32_t f32Duty);
 void ApolloCTimer_Init(stc_apolloctimer_timer_ab_t* pstcHandle, stc_apolloctimer_config_t* pstcConfig);
 void ApolloCTimer_Start(stc_apolloctimer_timer_ab_t* pstcHandle);
+void ApolloCTimer_Disable(stc_apolloctimer_timer_ab_t* pstcHandle);
 
 
 #ifdef __cplusplus

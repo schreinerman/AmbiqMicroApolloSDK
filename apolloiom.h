@@ -37,13 +37,17 @@ so agrees to indemnify Fujitsu against all liability.
 ** @link ApolloIomGroup Apollo IOM Driver description @endlink
 **
 ** History:
-**   - 2017-01-31  V1.0  MSc  First Version
-**   - 2017-04-13  V1.1  MSc  Added one-byte transfer
-**   - 2017-10-17  V1.2  MSc  Added register based transfers
-**   - 2018-04-04  V1.3  MSc  Added interrupt handling and SW SPI
-**   - 2018-04-17  V1.4  MSc  Added more intelligent pin setup and prepared for mbed
-**                            ,added fullduplex for Apollo2 B2 and SW SPI
-**                            ,added I2C bus reset
+**   - 2017-01-31  V1.0  Manuel Schreiner   First Version
+**   - 2017-04-13  V1.1  Manuel Schreiner   Added one-byte transfer
+**   - 2017-10-17  V1.2  Manuel Schreiner   Added register based transfers
+**   - 2018-04-04  V1.3  Manuel Schreiner   Added interrupt handling and SW SPI
+**   - 2018-04-17  V1.4  Manuel Schreiner   Added more intelligent pin setup and prepared for mbed
+**                                          ,added fullduplex for Apollo2 B2 and SW SPI
+**                                          ,added I2C bus reset
+**   - 2018-06-07  V1.5  Manuel Schreiner   Fixed issues with enable and busreset
+**   - 2018-07-06  V1.6  Manuel Schreiner   Updated documentation, 
+**                                          now part of the FEEU ClickBeetle(TM) SW Framework
+**   - 2018-07-25  V1.7  Manuel Schreiner   Fixed missing break in switch instuction in ApolloIOM_Configure
 **
 *****************************************************************************/
 #ifndef __APOLLOIOM_H__
@@ -57,9 +61,54 @@ extern "C"
     
 /**
 ******************************************************************************
-** \defgroup ApolloIomGroup Apollo IOM Driver
+** \defgroup ApolloIomGroup  Low-Level-Driver for Apollo 1/2 IOM
+**
+** See @link apolloiom_module_setup Required settings in RTE_Device.h @endlink
+** for how to setup the driver.
 **
 ** Provided functions of ApolloIom:
+**
+** General:
+** --------
+** - ApolloIOM_Configure()        - configure IOM
+** - ApolloIOM_Enable()           - enable IOM
+** - ApolloIOM_Disable()          - disable IOM
+**
+** SPI Functions:
+** --------------
+** - ApolloIom_SpiCommand()       - execute an SPI command with the IOM command sequencer
+** - ApolloIom_SpiWrite()         - write data (non blocking)
+** - ApolloIom_SpiWritePolled()   - write data (polled blocking)
+** - ApolloIom_SpiWriteByte()     - write one byte (non blocking)
+** - ApolloIom_SpiTransfer()      - read/write one data (non blocking, only supported by Apollo2, rev. B2)
+** - ApolloIom_SpiRead()          - read data (non-blocking and if no callback is defined polled/blocking)
+** - ApolloIom_SpiReadByte()      - read one byte (polled blocking)
+** - ApolloIom_SpiReadRegister()  - read a register value
+** - ApolloIom_SpiWriteRegister() - write a register value
+**
+** SW SPI:
+** -------
+** - ApolloIomConfigureSwSpi()     - confugure SW SPI
+** - ApolloIom_SwSpiReadWrite()    - read write byte per SW SPI
+**
+** I2C Functions:
+** --------------
+** - ApolloIom_I2cCommand()        - execute an I2C command with the IOM command sequencer
+** - ApolloIom_I2cWrite()          - write data 
+** - ApolloIom_I2cReadRegister()   - read register
+** - ApolloIom_I2cWriteRegister()  - write register
+**
+** Interrupt handling:
+** -------------------
+** - ApolloIom_DisableInterrupts() - disable interrupts for a dedicated IOM
+** - ApolloIom_EnableInterrupts()  - enable interrupts for a dedicated IOM
+** - ApolloIom_IRQHandler()        - IRQ handler, can be called from outside of the driver, for example by an OS
+**
+** Pin functions:
+** --------------
+** - ApolloIom_GetSpiByPin()       - get IOM instance by SPI pins 
+** - ApolloIom_GetI2cByPin()       - get IOM instance by I2C pins
+** - ApolloIom_GetPinsByInstance() - get pins by IOM instance
 ** 
 **   
 ******************************************************************************/
@@ -74,13 +123,42 @@ extern "C"
 ** @endcode
 **
 ******************************************************************************/
+      
 
 /**
 ******************************************************************************    
 ** \page apolloiom_module_setup Required settings in RTE_Device.h
 ** \brief Following defines are required in RTE_Device.h
 ** @code   
-** #define IOMSTR0_ENABLED 1    //enable IOMSTR0 
+**
+** //++++++++++++++++++++++++++++
+** //enable IOMSTR in the driver:
+** //++++++++++++++++++++++++++++
+** #define APOLLOIOM_ENABLED 1  //enables usage of all IOM channels (needs more RAM)
+** #define IOMSTR0_ENABLED   1  //enable usage of only IOMSTR0 
+** #define IOMSTR1_ENABLED   1  //enable usage of only IOMSTR1
+** //...
+** //Apollo2 also have IOMSTR2..5 available
+**
+**
+**
+** //+++++++++++++++++++++++++++++++++++++++++
+** //enable IOMSTR IRQ handling in the driver:
+** //+++++++++++++++++++++++++++++++++++++++++
+** #define APOLLOIOM_USE_IRQS  //handle all IOMSTR interrupts in the driver
+**                             //and producing a callback as initiated by ApolloIom_EnableInterrupts()
+**
+** #define IOMSTR0_USE_IRQS 1  //enable usage of IRQ handling for only IOMSTR0 in the driver
+**                             //and producing a callback as initiated by ApolloIom_EnableInterrupts()
+**
+** #define IOMSTR1_USE_IRQS 1  //enable usage of IRQ handling for only IOMSTR1 in the driver
+**                             //and producing a callback as initiated by ApolloIom_EnableInterrupts()
+** //...
+** //Apollo2 also have IOMSTR2..5 available
+**
+**
+** #define APOLLOSWSPI_ENABLED 1 //enables SW SPI virtual IOM instance via GPIO pin toggling
+**
 ** @endcode
 **
 ******************************************************************************/
@@ -172,7 +250,9 @@ extern "C"
 #define AM_HAL_IOM_READ                     0x80000000
 #endif
 
-#define IOMSTR_SWSPI ((IOMSTR0_Type*)(IOMSTR0 + 4))
+#if APOLLOSWSPI_ENABLED == 1 
+#define IOMSTR_SWSPI ((IOMSTR0_Type*)(IOMSTR0 + 4)) //create virtual SWSPI IOM interface
+#endif
 
 #define APOLLOIOM_IRQ_ARB                   (1 << IOMSTR0_INTEN_ARB_Pos)    ///< This is the arbitration loss interrupt.
 #define APOLLOIOM_IRQ_STOP                  (1 << IOMSTR0_INTEN_STOP_Pos)   ///< This is the STOP command interrupt.
@@ -337,7 +417,7 @@ typedef struct stc_apolloiom_nb_buffer
 } stc_apolloiom_nb_buffer_t;
 
 
-typedef void (*pfn_apollospi_rxtx_t) (IOMSTR0_Type* pstcInstance, stc_apolloiom_nb_buffer_t* pstcBuffer);
+typedef void (*pfn_apollospi_rxtx_t) (IOMSTR0_Type* pstcHandle, stc_apolloiom_nb_buffer_t* pstcBuffer);
 
 /// ApolloIOM module internal data
 typedef struct stc_apolloiom_intern_data
@@ -379,9 +459,9 @@ typedef struct stc_apolloiom_instance_data
 /* Global function prototypes ('extern', definition in C source)             */
 /*****************************************************************************/
 
-en_result_t ApolloIOM_Enable(IOMSTR0_Type* pstcInstance);
-en_result_t ApolloIOM_Disable(IOMSTR0_Type* pstcInstance);
-en_result_t ApolloIOM_Configure(IOMSTR0_Type* pstcInstance, const stc_apolloiom_config_t* pstcConfig);
+en_result_t ApolloIOM_Enable(IOMSTR0_Type* pstcHandle);
+en_result_t ApolloIOM_Disable(IOMSTR0_Type* pstcHandle);
+en_result_t ApolloIOM_Configure(IOMSTR0_Type* pstcHandle, const stc_apolloiom_config_t* pstcConfig);
 en_result_t ApolloIom_SpiCommand(IOMSTR0_Type* pstcHandle, uint32_t u32Operation, uint32_t u32ChipSelect, uint32_t u32NumBytes, uint32_t u32Options);
 en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesWritten, uint32_t u32Options,pfn_apollospi_rxtx_t pfnCallback);
 en_result_t ApolloIom_SpiWritePolled(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesWritten, uint32_t u32Options);
@@ -391,17 +471,20 @@ en_result_t ApolloIom_SpiTransfer(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSele
 uint8_t ApolloIom_SpiReadByte(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint32_t u32Options);
 en_result_t ApolloIom_I2cCommand(IOMSTR0_Type* pstcHandle, uint32_t u32Operation, uint32_t u32BusAddress, uint32_t u32NumBytes, uint32_t u32Options);
 en_result_t ApolloIom_I2cWrite(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesWritten, uint32_t u32Options);
+en_result_t ApolloIom_I2cRead(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesRead, uint32_t u32Options);
 en_result_t ApolloIom_I2cReadRegister(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
 en_result_t ApolloIom_I2cWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
+en_result_t ApolloIom_I2cBusReset(IOMSTR0_Type* pstcHandle);
 en_result_t ApolloIom_SpiReadRegister(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
 en_result_t ApolloIom_SpiWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
+en_result_t ApolloIom_ConfigureSwSpi(IOMSTR0_Type* pstcHandle, uint32_t u32MosiPin, uint32_t u32MisoPin, uint32_t u32SckPin);
 uint8_t ApolloIom_SwSpiReadWrite(uint32_t u32MosiPin, uint32_t u32MisoPin, uint32_t u32SckPin, uint8_t u8DataOut, boolean_t bOrderLsbFirst);
-en_result_t ApolloIom_DisableInterrupts(IOMSTR0_Type* pstcInstance, uint32_t u32DisableMask);
-en_result_t ApolloIom_EnableInterrupts(IOMSTR0_Type* pstcInstance, uint32_t u32Priority, uint32_t u32EnableMask);
-void ApolloIom_IRQHandler(IOMSTR0_Type* pstcInstance);
+en_result_t ApolloIom_DisableInterrupts(IOMSTR0_Type* pstcHandle, uint32_t u32DisableMask);
+en_result_t ApolloIom_EnableInterrupts(IOMSTR0_Type* pstcHandle, uint32_t u32Priority, uint32_t u32EnableMask);
+void ApolloIom_IRQHandler(IOMSTR0_Type* pstcHandle);
 IOMSTR0_Type* ApolloIOM_GetSpiByPin(uint8_t u8SckPin, uint8_t u8MisoPin, uint8_t u8MosiPin);
 IOMSTR0_Type* ApolloIOM_GetI2cByPin(uint8_t u8SclPin, uint8_t u8SdaPin);
-stc_apolloiom_gpios_t* ApolloIOM_GetPinsByInstance(IOMSTR0_Type* pstcInstance);
+stc_apolloiom_gpios_t* ApolloIOM_GetPinsByInstance(IOMSTR0_Type* pstcHandle);
 
 
 #ifdef __cplusplus

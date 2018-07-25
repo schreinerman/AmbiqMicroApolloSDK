@@ -37,8 +37,11 @@ so agrees to indemnify Fujitsu against all liability.
  ** @link ApolloCTimerGroup Apollo CTIMER Implementation description @endlink
  **
  ** History:
- **   - 2017-05-16  V1.0  MSc  First Version
- **   - 2017-06-20  V1.1  MSc  Updated general initialization routine
+ **   - 2017-05-16  V1.0  Manuel Schreiner   First Version
+ **   - 2017-06-20  V1.1  Manuel Schreiner   Updated general initialization routine
+ **   - 2018-07-06  V1.2  Manuel Schreiner   Updated documentation, 
+ **                                          now part of the FEEU ClickBeetle(TM) SW Framework
+ **                                          added high/low state using level and no PWM
  **
  *****************************************************************************/
 #define __APOLLOCTIMER_C__
@@ -48,6 +51,7 @@ so agrees to indemnify Fujitsu against all liability.
 
 #include "apolloctimer.h"
 
+#if (CTIMER0_ENABLED == 1) || (CTIMER1_ENABLED == 1) || (CTIMER2_ENABLED == 1) || (CTIMER3_ENABLED == 1) || (APOLLOCTIMER_ENABLED == 1)
 /*****************************************************************************/
 /* Local pre-processor symbols/macros ('#define')                            */
 /*****************************************************************************/
@@ -209,8 +213,9 @@ static stc_apolloctimer_timer_ab_t* GetTimerFromPin(int pin)
             default:
             	return NULL;
         }
+    #else
+        return NULL;
     #endif
-    return NULL;
 }
 #endif
 
@@ -229,6 +234,7 @@ void ApolloCTimer_PwmInitByPin(int pin)
     pstcHandle = GetTimerFromPin(pin);
     if (pstcHandle == NULL) return;
     ApolloGpio_GpioOutputConfiguration(pin,GpioPushPull);
+    ApolloGpio_GpioSet(pin,TRUE);
     ApolloGpio_GpioSelectFunction(pin,2);
     ApolloCTimer_PwmInit(pstcHandle);
 }
@@ -266,8 +272,8 @@ void ApolloCTimer_Init(stc_apolloctimer_timer_ab_t* pstcHandle, stc_apolloctimer
         pstcHandle->HANDLE->CTRL_b.TMRAFN = (uint8_t)pstcConfig->enFunction;          //repeated pulse count timer
         pstcHandle->HANDLE->CTRL_b.TMRACLK = (uint8_t)pstcConfig->enClockInput;      //HFRC div 128 (512 for Apollo 2)
         
-        pstcHandle->HANDLE->CMPRA_b.CMPR0A = 1;         //periode - on-time timer
-        pstcHandle->HANDLE->CMPRA_b.CMPR1A = 255;       //on-time timer 
+        pstcHandle->HANDLE->CMPRA_b.CMPR0A = 128;        //periode - on-time timer
+        pstcHandle->HANDLE->CMPRA_b.CMPR1A = 1024;       //on-time timer 
         
         pstcHandle->HANDLE->CTRL_b.TMRACLR = 0;         //release clear timer 
         pstcHandle->HANDLE->CTRL_b.TMRAEN = 1;          //start timer 
@@ -288,7 +294,7 @@ void ApolloCTimer_Init(stc_apolloctimer_timer_ab_t* pstcHandle, stc_apolloctimer
         pstcHandle->HANDLE->CTRL_b.TMRBCLK = (uint8_t)pstcConfig->enClockInput;      //HFRC div 128 (512 for Apollo 2)
         
         pstcHandle->HANDLE->CMPRB_b.CMPR0B = 128;         //periode - on-time timer
-        pstcHandle->HANDLE->CMPRB_b.CMPR1B = 255;       //on-time timer 
+        pstcHandle->HANDLE->CMPRB_b.CMPR1B = 1024;       //on-time timer 
         
         pstcHandle->HANDLE->CTRL_b.TMRBCLR = 0;         //release clear timer 
         pstcHandle->HANDLE->CTRL_b.TMRBEN = 1;          //start timer 
@@ -319,6 +325,26 @@ void ApolloCTimer_Start(stc_apolloctimer_timer_ab_t* pstcHandle)
 
 /**
  ******************************************************************************
+ ** \brief  Disable CTimer
+ **
+ ** \param pstcHandle  Can be CTIMERA0, CTIMERB0, CTIMERA1, CTIMERB1
+ **                           CTIMERA2, CTIMERB2, CTIMERA3, CTIMERB3
+ **
+ ******************************************************************************/
+void ApolloCTimer_Disable(stc_apolloctimer_timer_ab_t* pstcHandle)
+{
+    if (pstcHandle == NULL) return;
+    if (pstcHandle->enTimerAB == CTimerA)
+    {
+        pstcHandle->HANDLE->CTRL_b.TMRAEN = 0;          //stop timer 
+    } else if (pstcHandle->enTimerAB == CTimerB)
+    {
+        pstcHandle->HANDLE->CTRL_b.TMRBEN = 0;          //stop timer 
+    }
+}
+
+/**
+ ******************************************************************************
  ** \brief  Init PWM
  **
  ** \param pstcHandle  Can be CTIMERA0, CTIMERB0, CTIMERA1, CTIMERB1
@@ -342,7 +368,7 @@ void ApolloCTimer_PwmInit(stc_apolloctimer_timer_ab_t* pstcHandle)
         pstcHandle->HANDLE->CTRL_b.TMRACLK = 0x03;      //HFRC div 128 (512 for Apollo 2)
         
         pstcHandle->HANDLE->CMPRA_b.CMPR0A = 1;         //periode - on-time timer
-        pstcHandle->HANDLE->CMPRA_b.CMPR1A = 255;       //on-time timer 
+        pstcHandle->HANDLE->CMPRA_b.CMPR1A = 1024;       //on-time timer 
         
         pstcHandle->HANDLE->CTRL_b.TMRACLR = 0;         //release clear timer 
         pstcHandle->HANDLE->CTRL_b.TMRAEN = 1;          //start timer 
@@ -360,8 +386,8 @@ void ApolloCTimer_PwmInit(stc_apolloctimer_timer_ab_t* pstcHandle)
         pstcHandle->HANDLE->CTRL_b.TMRBFN = 3;          //repeated pulse count timer
         pstcHandle->HANDLE->CTRL_b.TMRBCLK = 0x03;      //HFRC div 128 (512 for Apollo 2)
         
-        pstcHandle->HANDLE->CMPRB_b.CMPR0B = 128;         //periode - on-time timer
-        pstcHandle->HANDLE->CMPRB_b.CMPR1B = 255;       //on-time timer 
+        pstcHandle->HANDLE->CMPRB_b.CMPR0B = 1;          //periode - on-time timer
+        pstcHandle->HANDLE->CMPRB_b.CMPR1B = 1024;       //on-time timer 
         
         pstcHandle->HANDLE->CTRL_b.TMRBCLR = 0;         //release clear timer 
         pstcHandle->HANDLE->CTRL_b.TMRBEN = 1;          //start timer 
@@ -369,6 +395,20 @@ void ApolloCTimer_PwmInit(stc_apolloctimer_timer_ab_t* pstcHandle)
 }
 
 #if (APOLLOGPIO_ENABLED == 1)
+/**
+ ******************************************************************************
+ ** \brief  Disable CTimer by pin
+ **
+ ** \param pin  Can be every pin name defined PIN_GPIO<n> <n=0..49>, 
+ **             but with PWM functionallity, for example PIN_GPIO1, PIN_GPIO2, ... PIN_GPIO49
+ **
+ ******************************************************************************/
+void ApolloCTimer_DisableByPin(int pin)
+{
+    stc_apolloctimer_timer_ab_t* pstcHandle;
+    pstcHandle = GetTimerFromPin(pin);
+    ApolloCTimer_Disable(pstcHandle);
+}
 /**
  ******************************************************************************
  ** \brief  Set the duty cycle of a PWM by pin (use timer on GPIO Func 2 only)
@@ -382,9 +422,31 @@ void ApolloCTimer_PwmInit(stc_apolloctimer_timer_ab_t* pstcHandle)
 void ApolloCTimer_PwmSetDutyByPin(int pin, float32_t f32Duty)
 {
     stc_apolloctimer_timer_ab_t* pstcHandle;
+    boolean_t bPolarity;
     pstcHandle = GetTimerFromPin(pin);
+      
     if (pstcHandle == NULL) return;
-    ApolloCTimer_PwmSetDuty(pstcHandle,f32Duty);
+    
+    if (pstcHandle->enTimerAB == CTimerA)
+    {
+        bPolarity = pstcHandle->HANDLE->CTRL_b.TMRAPOL;
+    } else{
+        bPolarity = pstcHandle->HANDLE->CTRL_b.TMRAPOL;
+    }
+    
+    if (f32Duty <= 0.0001f)
+    {
+        ApolloGpio_GpioSet(pin,((~bPolarity)&0x1));
+        ApolloGpio_GpioSelectFunction(pin,3);
+    } else  if (f32Duty >= 0.9999f)
+    {
+        ApolloGpio_GpioSet(pin,bPolarity);
+        ApolloGpio_GpioSelectFunction(pin,3);
+    } else
+    {
+        ApolloGpio_GpioSelectFunction(pin,2);
+        ApolloCTimer_PwmSetDuty(pstcHandle,f32Duty);
+    }
 }
 #endif
 
@@ -462,8 +524,8 @@ void ApolloCTimer_PwmSetDuty(stc_apolloctimer_timer_ab_t* pstcHandle, float32_t 
         }
         if (pstcHandle == CTIMERB0)
         {
-            CTIMER->INTCLR_b.CTMRB0C1INT = 1;
-            while (CTIMER->INTSTAT_b.CTMRB0C1INT == 0) __NOP();
+            CTIMER->INTCLR_b.CTMRA0C1INT = 1;
+            while (CTIMER->INTSTAT_b.CTMRA0C1INT == 0) __NOP();
         }
         if (pstcHandle == CTIMERA1)
         {
@@ -505,7 +567,9 @@ void ApolloCTimer_PwmSetDuty(stc_apolloctimer_timer_ab_t* pstcHandle, float32_t 
         }
     #endif
 }
-
+#else
+#warning Low-Level-Driver for Apollo 1/2 CTIMER is disabled and could be removed from the project
+#endif //(CTIMER0_ENABLED == 1) || (CTIMER1_ENABLED == 1) || (CTIMER2_ENABLED == 1) || (CTIMER3_ENABLED == 1) || (APOLLOCTIMER_ENABLED == 1)
 /******************************************************************************/
 /* EOF (not truncated)                                                        */
 /******************************************************************************/

@@ -35,8 +35,11 @@
  ** @link ItmSemihostGroup ITM Semihosting description @endlink
  **
  ** History:
- **   - 2016-15-09  V1.0  MSc  First Version
- **   - 2017-04-04  V1.1  MSc  ITMSEMIHOST_ENABLED added (to be defined in RTE_Device.h)
+ **   - 2016-15-09  V1.0  Manuel Schreiner   First Version
+ **   - 2017-04-04  V1.1  Manuel Schreiner   ITMSEMIHOST_ENABLED added (to be defined in RTE_Device.h)
+ **   - 2018-07-06  V1.2  Manuel Schreiner   Updated documentation, 
+ **                                          now part of the FEEU ClickBeetle(TM) SW Framework
+ **
  *****************************************************************************/
 #define __ITMSEMIHOST_C__
 /*****************************************************************************/
@@ -348,7 +351,8 @@ extern  char   *sbrk(int size)
     extern  char         *_heap;
     extern  long         _heap_size;
 #endif
-
+#else
+#warning Low-Level-Driver for Apollo 1/2 ITM Semihosting is disabled and could be removed from the project
 #endif /* ITMSEMIHOST_ENABLED == 1 */
 /**
  ******************************************************************************

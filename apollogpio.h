@@ -37,9 +37,13 @@ so agrees to indemnify Fujitsu against all liability.
  ** @link ApolloGpioGroup Apollo GPIO description @endlink
  **
  ** History:
- **   - 2017-04-04  V1.0  MSc  First Version
- **   - 2017-04-13  V1.1  MSc  IRQs added, Smaller macro bug fixes
- **   - 2017-06-26  V1.2  MSc  Read pin added
+ **   - 2017-04-04  V1.0  Manuel Schreiner   First Version
+ **   - 2017-04-13  V1.1  Manuel Schreiner   IRQs added, Smaller macro bug fixes
+ **   - 2017-06-26  V1.2  Manuel Schreiner   Read pin added
+ **   - 2018-04-17  V1.3  Manuel Schreiner   Removed ApolloGpio_GpioSelectFunction(pin,3); in 
+ **                                          enabled as input / output
+ **   - 2018-07-06  V1.4  Manuel Schreiner   Updated documentation, 
+ **                                          now part of the FEEU ClickBeetle(TM) SW Framework
  **
  *****************************************************************************/
 #ifndef __APOLLOGPIO_H__
@@ -53,10 +57,24 @@ extern "C"
 
 /**
  ******************************************************************************
- ** \defgroup ApolloGpioGroup Apollo GPIO
+ ** \defgroup ApolloGpioGroup  Low-Level-Driver for Apollo 1/2 GPIO
  **
  ** Provided functions of ApolloGpio:
- ** 
+ ** - ApolloGpio_GpioSet()                 - set/clear GPIO
+ ** - ApolloGpio_GpioGet()                 - read GPIO
+ ** - ApolloGpio_GpioPullupEnable()        - enable pullups for the GPIO
+ ** - ApolloGpio_GpioSelectPullup()        - set the pullup resistor for the GPIO supporting this feature
+ ** - ApolloGpio_GpioInputEnable()         - enable input for the GPIO
+ ** - ApolloGpio_GpioStrengthEnable()      - set output strength for the GPIO supporting this feature
+ ** - ApolloGpio_GpioOutputConfiguration() - set output type
+ ** - ApolloGpio_GpioOutputEnable()        - enable output
+ ** - ApolloGpio_GpioSelectFunction()      - select function at this GPIO, 3 is GPIO
+ ** - ApolloGpio_IrqIsEnabled()            - check IRQ for the GPIO is enabled
+ ** - ApolloGpio_IrqIsPending()            - check if a GPIO is pending for this GPIO
+ ** - ApolloGpio_IrqExecute()              - execute a callback if IRQ is pending without use of NVIC
+ ** - ApolloGpio_RegisterIrq()             - register IRQ and enable NVIC
+ ** - ApolloGpio_UnRegisterIrq()           - unregister IRQ and disable NVIC if no other GPIO is registered for interrupt usage
+ ** - ApolloGpio_GpioSetHighSwitch()       - enable / disable high current switch at the GPIO supporting this feature
  **   
  ******************************************************************************/
 //@{
@@ -70,13 +88,32 @@ extern "C"
  ** @endcode
  **
  ******************************************************************************/
-    
+     
+/**
+******************************************************************************    
+** \page apollogpio_module_setup Required settings in RTE_Device.h
+** \brief Following defines are required in RTE_Device.h
+** @code   
+**
+** #define APOLLOGPIO_ENABLED  1  //enables usage of GPIO module
+**
+** #define APOLLOGPIO_USE_IRQS 1  //enables usage of interrupt handling in the driver
+**
+** @endcode
+**
+******************************************************************************/
+ 
+     
 /*****************************************************************************/
 /* Include files                                                             */
 /*****************************************************************************/
 
 #include "mcu.h"
 #include "base_types.h"
+
+#if defined(APOLLOGPIO_USE_MBED)
+#include "board.h" //needed for PinName enumeration
+#endif
 
 #if (APOLLOGPIO_ENABLED == 1)
      
@@ -153,6 +190,9 @@ extern "C"
 
 #define SET_GPIO(n)       (n < 32) ? (GPIO->WTSA = (1 << n) & 0xFFFFFFFF) : (GPIO->WTSB = (1 << (n - 32)) & 0xFFFFFFFF)
 #define CLEAR_GPIO(n)     (n < 32) ? (GPIO->WTCA = (1 << n) & 0xFFFFFFFF) : (GPIO->WTCB = (1 << (n - 32)) & 0xFFFFFFFF)
+
+#define SET_GPIOS(mask)   GPIO->WTSB = (uint32_t)((mask) >> 32); GPIO->WTSA = (uint32_t)(mask) ///< set multible GPIOs in a 64-bit mask
+#define CLEAR_GPIOS(mask) GPIO->WTCB = (uint32_t)((mask) >> 32); GPIO->WTCA = (uint32_t)(mask) ///< clear multible GPIOs in a 64-bit mask
     
 /*****************************************************************************/
 /* Global type definitions ('typedef')                                        */
@@ -181,6 +221,15 @@ typedef enum en_apollogpio_edgedetect
     GpioRisingEdge = 0,
 } en_apollogpio_edgedetect_t;
 
+#if !defined(_APOLLOGPIO_GPIO_PIN_T_)
+#define _APOLLOGPIO_GPIO_PIN_T_
+    #if defined(APOLLOGPIO_USE_MBED)
+        typedef PinName apollogpio_gpio_pin_t;
+    #else
+        typedef uint32_t apollogpio_gpio_pin_t;
+    #endif
+#endif
+
 /*****************************************************************************/
 /* Global variable declarations ('extern', definition in C source)           */
 /*****************************************************************************/
@@ -191,21 +240,21 @@ typedef enum en_apollogpio_edgedetect
 /* Global function prototypes ('extern', definition in C source)             */
 /*****************************************************************************/
 
-void ApolloGpio_GpioSet(uint32_t pin, boolean_t bOnOff);
-void ApolloGpio_GpioPullupEnable(uint32_t pin, boolean_t bEnable);
-void ApolloGpio_GpioInputEnable(uint32_t pin, boolean_t bEnable);
-void ApolloGpio_GpioStrengthEnable(uint32_t pin, boolean_t bEnable);
-void ApolloGpio_GpioOutputConfiguration(uint32_t pin, en_apollogpio_mode_t enMode);
-void ApolloGpio_GpioOutputEnable(uint32_t pin, boolean_t bEnable);
-void ApolloGpio_GpioSelectFunction(uint32_t pin, uint8_t u8Function);
-boolean_t ApolloGpio_IrqIsEnabled(uint32_t pin);
-boolean_t ApolloGpio_IrqIsPending(uint32_t pin);
-boolean_t ApolloGpio_IrqExecute(uint32_t pin);
-void ApolloGpio_RegisterIrq(uint32_t pin, en_apollogpio_edgedetect_t enMode, pfn_apollogpio_callback_t pfnCallback);
-void ApolloGpio_UnRegisterIrq(uint32_t pin);
-boolean_t ApolloGpio_GpioGet(uint32_t pin);
-void ApolloGpio_GpioSetHighSwitch(uint32_t pin, boolean_t bOnOff);
-void ApolloGpio_GpioSelectPullup(uint32_t pin, en_apollogpio_pullup_t enPullUp);
+void ApolloGpio_GpioSet(apollogpio_gpio_pin_t pin, boolean_t bOnOff);
+void ApolloGpio_GpioPullupEnable(apollogpio_gpio_pin_t pin, boolean_t bEnable);
+void ApolloGpio_GpioInputEnable(apollogpio_gpio_pin_t pin, boolean_t bEnable);
+void ApolloGpio_GpioStrengthEnable(apollogpio_gpio_pin_t pin, boolean_t bEnable);
+void ApolloGpio_GpioOutputConfiguration(apollogpio_gpio_pin_t pin, en_apollogpio_mode_t enMode);
+void ApolloGpio_GpioOutputEnable(apollogpio_gpio_pin_t pin, boolean_t bEnable);
+void ApolloGpio_GpioSelectFunction(apollogpio_gpio_pin_t pin, uint8_t u8Function);
+boolean_t ApolloGpio_IrqIsEnabled(apollogpio_gpio_pin_t pin);
+boolean_t ApolloGpio_IrqIsPending(apollogpio_gpio_pin_t pin);
+boolean_t ApolloGpio_IrqExecute(apollogpio_gpio_pin_t pin);
+void ApolloGpio_RegisterIrq(apollogpio_gpio_pin_t pin, en_apollogpio_edgedetect_t enMode, uint32_t u32Priority, pfn_apollogpio_callback_t pfnCallback);
+void ApolloGpio_UnRegisterIrq(apollogpio_gpio_pin_t pin);
+boolean_t ApolloGpio_GpioGet(apollogpio_gpio_pin_t pin);
+void ApolloGpio_GpioSetHighSwitch(apollogpio_gpio_pin_t pin, boolean_t bOnOff);
+void ApolloGpio_GpioSelectPullup(apollogpio_gpio_pin_t pin, en_apollogpio_pullup_t enPullUp);
 #endif /* (APOLLOGPIO_ENABLED == 1) */
 
 #ifdef __cplusplus

@@ -37,9 +37,11 @@ so agrees to indemnify Fujitsu against all liability.
  ** @link apollosysctrlGroup Apollo 1 / 2 System Control description @endlink
  **
  ** History:
- **   - 2017-09-01  V1.0  MSc  First Version
- **   - 2017-10-17  V1.1  MSc  Fixed ApolloSysCtrl48MHz setting 
-
+ **   - 2017-09-01  V1.0  Manuel Schreiner   First Version
+ **   - 2017-10-17  V1.1  Manuel Schreiner   Fixed ApolloSysCtrl48MHz setting 
+ **   - 2018-07-06  V1.2  Manuel Schreiner   Updated documentation, 
+ **                                          now part of the FEEU ClickBeetle(TM) SW Framework
+ **
  *****************************************************************************/
 #define __APOLLOSYSCTRL_C__
 /*****************************************************************************/
@@ -351,7 +353,7 @@ void ApolloSysCtrl_RtcClockInput(en_apollosysctrl_rtcclk_t enClockSrc)
  ******************************************************************************/
 void ApolloSysCtrl_BandgapEnable(boolean_t bOnOff)
 {
-    MCUCTRL->BANDGAPEN_b.BGPEN bOnOff;
+    MCUCTRL->BANDGAPEN_b.BGPEN = bOnOff;
 }
 #endif
 

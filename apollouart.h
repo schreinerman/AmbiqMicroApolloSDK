@@ -45,14 +45,17 @@
  ** @link ApolloUartGroup UART routines for Apollo @endlink
  **
  ** History:
- **   - 2016-11-26  V1.0  MSc  First Version
- **   - 2017-04-13  V1.1  MSc  Added IRQs and callbacks
- **   - 2017-05-16  V1.2  MSc  Added Apollo 2 support
- **   - 2017-06-26  V1.3  MSc  Added CMSIS Driver API
- **   - 2017-07-26  V1.4  MSc  Fixed error if CMSIS Driver API is disabled
- **   - 2017-10-17  V1.5  MSc  Fixed for Apollo2 UARTEN in initialization
- **   - 2018-04-24  V1.6  MSc  Added configuration by pin (for Arduino or MBED based SDKs)
- **                            Added extended configuration options
+ **   - 2016-11-26  V1.0  Manuel Schreiner   First Version
+ **   - 2017-04-13  V1.1  Manuel Schreiner   Added IRQs and callbacks
+ **   - 2017-05-16  V1.2  Manuel Schreiner   Added Apollo 2 support
+ **   - 2017-06-26  V1.3  Manuel Schreiner   Added CMSIS Driver API
+ **   - 2017-07-26  V1.4  Manuel Schreiner   Fixed error if CMSIS Driver API is disabled
+ **   - 2018-03-15  V1.5  Manuel Schreiner   Fixed interrupt handling
+ **   - 2018-04-24  V1.6  Manuel Schreiner   Added configuration by pin (for Arduino or MBED based SDKs)
+ **                                          Added extended configuration options
+ **   - 2018-07-06  V1.7  Manuel Schreiner   Updated documentation, 
+ **                                          now part of the FEEU ClickBeetle(TM) SW Framework
+ **   - 2018-07-24  V1.8  Manuel Schreiner   Updated pin-configuration and status-infomration
  **
  *****************************************************************************/
 
@@ -67,7 +70,7 @@ extern "C"
     
 /**
  ******************************************************************************
- ** \defgroup ApolloUartGroup UART routines for Apollo
+ ** \defgroup ApolloUartGroup  Low-Level-Driver for Apollo 1/2 UART
  **
  ** Provided functions of UART routines for Apollo:
  ** 
@@ -327,6 +330,15 @@ extern "C"
      #define UART0 UART
 #endif
 
+#if (APOLLOUART_ENABLED == 1) && defined(APOLLO2_H)
+    #ifndef APOLLOUART0_ENABLED
+    #define APOLLOUART0_ENABLED 1
+    #endif
+    #ifndef APOLLOUART1_ENABLED
+    #define APOLLOUART1_ENABLED 1
+    #endif    
+#endif
+
 /*****************************************************************************/
 /* Global type definitions ('typedef')                                       */
 /*****************************************************************************/
@@ -424,7 +436,21 @@ typedef struct stc_apollouart_gpios
     en_apollouart_gpiotype_t enUartType;
 } stc_apollouart_gpios_t;
 
-
+typedef struct stc_apollouart_status
+{
+    uint32_t bRxBusy        : 1;
+    uint32_t bTxBusy        : 1;
+    uint32_t bRxFull        : 1;
+    uint32_t bTxEmpty       : 1;
+    uint32_t bErrorParity   : 1;
+    uint32_t bErrorOverflow : 1;
+    uint32_t bErrorBreak    : 1;
+    uint32_t bErrorFrameing : 1;
+    uint32_t bDCD           : 1;
+    uint32_t bDSR           : 1;
+    uint32_t bCTS           : 1;
+    uint32_t Reserved       : 21;
+} stc_apollouart_status_t;
 
 
 /// ApolloUart module internal data, storing internal information for each UART instance.
@@ -461,6 +487,7 @@ void ApolloUart_PutChar(UART_Type* pstcUart, uint8_t u8Char);
 void ApolloUart_PutString(UART_Type* pstcUart, char_t *pu8Buffer);
 uint8_t ApolloUart_GetChar(UART_Type* pstcUart);
 boolean_t ApolloUart_HasChar(UART_Type* pstcUart);
+stc_apollouart_status_t ApolloUart_GetStatus(UART_Type* pstcUart);
 void ApolloUart_RegisterCallbacks(UART_Type* pstcUart,pfn_apollouart_txnext_t cbTxNext, pfn_apollouart_rx_t cbRx);
 void ApolloUart_NewTxData(UART_Type* pstcUart);
 boolean_t ApolloUart_NewTxDataEnabled(UART_Type* pstcUart);

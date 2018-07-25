@@ -35,7 +35,11 @@
  ** @link ItmSemihostGroup ITM Semihosting description @endlink
  **
  ** History:
- **   - 2016-15-09  V1.0  MSCH  First Version
+ **   - 2016-15-09  V1.0  Manuel Schreiner   First Version
+ **   - 2017-04-04  V1.1  Manuel Schreiner   ITMSEMIHOST_ENABLED added (to be defined in RTE_Device.h)
+ **   - 2018-07-06  V1.2  Manuel Schreiner   Updated documentation, 
+ **                                          now part of the FEEU ClickBeetle(TM) SW Framework
+ **
  *****************************************************************************/
 
 #ifndef __ITMSEMIHOST_H__
@@ -49,7 +53,7 @@ extern "C"
     
 /**
  ******************************************************************************
- ** \defgroup ItmSemihostGroup ITM Semihosting
+ ** \defgroup ItmSemihostGroup Low-Level-Driver for Apollo 1/2 ITM Semihosting
  **
  ** Provided functions of ITM Semihosting:
  ** 

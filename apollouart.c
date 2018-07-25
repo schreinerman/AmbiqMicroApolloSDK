@@ -20,8 +20,8 @@
 * compilation, or representation of this Software requires written             *
 * permission of Fujitsu.                                                       *
 *                                                                              *
-* NO WARRANTY: This software is provided â€œas-isâ€� with no warranty of any kind  *
-* (German â€œUnter Ausschluss jeglicher GewÃ¤hleistungâ€�), express or implied,     *
+* NO WARRANTY: This software is provided "as-is" with no warranty of any kind  *
+* (German "Unter Ausschluss jeglicher Gewaehleistung", express or implied,     *
 * including but not limited to non-infringement of third party rights,         *
 * merchantability and fitness for use.                                         *
 *                                                                              *
@@ -45,14 +45,18 @@
  ** @link ApolloUartGroup UART routines for Apollo @endlink
  **
  ** History:
- **   - 2016-11-26  V1.0  MSc  First Version
- **   - 2017-04-13  V1.1  MSc  Added IRQs and callbacks
- **   - 2017-05-16  V1.2  MSc  Added Apollo 2 support
- **   - 2017-06-26  V1.3  MSc  Added CMSIS Driver API
- **   - 2017-07-26  V1.4  MSc  Fixed error if CMSIS Driver API is disabled
- **   - 2018-03-15  V1.5  MSc  Fixed interrupt handling
- **   - 2018-04-24  V1.6  MSc  Added configuration by pin (for Arduino or MBED based SDKs)
- **                            Added extended configuration options
+ **   - 2016-11-26  V1.0  Manuel Schreiner   First Version
+ **   - 2017-04-13  V1.1  Manuel Schreiner   Added IRQs and callbacks
+ **   - 2017-05-16  V1.2  Manuel Schreiner   Added Apollo 2 support
+ **   - 2017-06-26  V1.3  Manuel Schreiner   Added CMSIS Driver API
+ **   - 2017-07-26  V1.4  Manuel Schreiner   Fixed error if CMSIS Driver API is disabled
+ **   - 2018-03-15  V1.5  Manuel Schreiner   Fixed interrupt handling
+ **   - 2018-04-24  V1.6  Manuel Schreiner   Added configuration by pin (for Arduino or MBED based SDKs)
+ **                                          Added extended configuration options
+ **   - 2018-07-06  V1.7  Manuel Schreiner   Updated documentation, 
+ **                                          now part of the FEEU ClickBeetle(TM) SW Framework
+ **   - 2018-07-24  V1.8  Manuel Schreiner   Updated pin-configuration and status-infomration
+ **
  *****************************************************************************/
 #define __APOLLOUART_C__
 /*****************************************************************************/
@@ -90,7 +94,7 @@ static const ARM_DRIVER_VERSION drv_vers = {0x0101,0x0205};
 /* Local function prototypes ('static')                                      */
 /*****************************************************************************/
 
-static stc_apollouart_intern_data_t* GetInternDataPtr(UART_Type* pstcIf);
+static stc_apollouart_intern_data_t* GetInternDataPtr(UART_Type* pstcHandle);
 static void ConfigureBaudrate(UART_Type* pstcUart,uint32_t u32Baudrate, uint32_t u32UartClkFreq);
 
 static const stc_apollouart_gpios_t stcUartGpios[] =
@@ -1038,18 +1042,18 @@ static ARM_USART_MODEM_STATUS GetModemStatus_UART1(void)
 ******************************************************************************
 ** \brief Return the internal data for a certain instance.
 **
-** \param pstcUsb Pointer to instance
+** \param pstcHandle Pointer to instance
 **
 ** \return Pointer to internal data or NULL if instance is not enabled (or not known)
 **
 ******************************************************************************/
-static stc_apollouart_intern_data_t* GetInternDataPtr(UART_Type* pstcIf)
+static stc_apollouart_intern_data_t* GetInternDataPtr(UART_Type* pstcHandle)
 {
     volatile uint32_t u32Instance;
 
     for (u32Instance = 0; u32Instance < INSTANCE_COUNT; u32Instance++)
     {
-        if ((uint32_t)pstcIf == (uint32_t)(m_astcInstanceDataLut[u32Instance].pstcInstance))
+        if ((uint32_t)pstcHandle == (uint32_t)(m_astcInstanceDataLut[u32Instance].pstcInstance))
         {
             return &m_astcInstanceDataLut[u32Instance].stcInternData;
         }
@@ -1125,7 +1129,7 @@ void ApolloUart_PutChar(UART_Type* pstcUart, uint8_t u8Char)
  **
  ** \param  pstcUart  UART pointer
  **
- ** \param  Pointer to (constant) file of bytes in mem
+ ** \param  pu8Buffer Pointer to (constant) file of bytes in mem
  **
  *****************************************************************************/
 void ApolloUart_PutString(UART_Type* pstcUart, char_t *pu8Buffer)
@@ -1265,7 +1269,7 @@ en_result_t ApolloUart_InitByPin(uint8_t u8RxPin,uint8_t u8TxPin,uint32_t u32Bau
 {
     uint32_t i;
     UART_Type* pstcUart = NULL;
-    stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
+    stc_apollouart_intern_data_t* pstcHandle;
     boolean_t bRxDone = FALSE;
     boolean_t bTxDone = FALSE;
     for(i = 0; i < UARTGPIOS_COUNT;i++)
@@ -1276,12 +1280,14 @@ en_result_t ApolloUart_InitByPin(uint8_t u8RxPin,uint8_t u8TxPin,uint32_t u32Bau
             {
                 ApolloGpio_GpioSelectFunction(u8RxPin,stcUartGpios[i].u8Function);
                 pstcUart = stcUartGpios[i].pstcHandle;
+                pstcHandle = GetInternDataPtr(pstcUart);
                 pstcHandle->stcGpios.i8RxPin = u8RxPin;
                 bRxDone = TRUE;
             } else if ((stcUartGpios[i].u8Gpio == u8TxPin) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeTx))
             {
                 ApolloGpio_GpioSelectFunction(u8TxPin,stcUartGpios[i].u8Function);
                 pstcUart = stcUartGpios[i].pstcHandle;
+                pstcHandle = GetInternDataPtr(pstcUart);
                 pstcHandle->stcGpios.i8TxPin = u8TxPin;
                 bTxDone = TRUE;
             }
@@ -1342,10 +1348,10 @@ void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcCo
     
     if (pstcConfig->bEnableTx)
     {
-        pstcHandle->stcGpios.i8RxPin = pstcConfig->stcGpios.u8TxPin;
+        pstcHandle->stcGpios.i8TxPin = pstcConfig->stcGpios.u8TxPin;
     } else
     {
-        pstcHandle->stcGpios.i8RxPin = -1;
+        pstcHandle->stcGpios.i8TxPin = -1;
     }
     
     //
@@ -1451,6 +1457,31 @@ void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcCo
 
 /**
  ******************************************************************************
+ ** \brief  Get UART Status
+ **
+ ** \param  pstcUart  UART pointer
+ **
+ ** \return the status
+ **
+ *****************************************************************************/
+stc_apollouart_status_t ApolloUart_GetStatus(UART_Type* pstcUart)
+{
+    stc_apollouart_status_t stcStat;
+    memset(&stcStat,0,sizeof(stcStat));
+    stcStat.bErrorOverflow =  pstcUart->RSR_b.OESTAT;
+    stcStat.bErrorBreak =  pstcUart->RSR_b.BESTAT;
+    stcStat.bErrorParity = pstcUart->RSR_b.PESTAT;
+    stcStat.bErrorFrameing = pstcUart->RSR_b.FESTAT;
+    if (pstcUart->FR_b.BUSY != 0) stcStat.bRxBusy = TRUE;
+    if (pstcUart->FR_b.TXFE != 0) stcStat.bTxBusy = TRUE;
+    if (pstcUart->FR_b.RXFE == 0) stcStat.bRxFull = TRUE;
+    if (pstcUart->FR_b.TXFF == 0) stcStat.bTxEmpty = TRUE;
+    return stcStat;
+}
+
+
+/**
+ ******************************************************************************
  ** \brief  Enable UART
  **
  ** \param  pstcUart         UART pointer
@@ -1505,7 +1536,7 @@ void ApolloUart_InitGpios(UART_Type* pstcUart)
         {
             if ((pstcInternHandle->stcGpios.i8CtsPin != -1) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeCts) && (stcUartGpios[i].u8Gpio == pstcInternHandle->stcGpios.i8CtsPin))
             {
-                ApolloGpio_GpioSelectFunction(stcUartGpios[i].u8Gpio,stcUartGpios[i].u8Function);
+                ApolloGpio_GpioSelectFunction(stcUartGpios[i].u8Gpio,stcUartGpios[i].u8Function); 
             }
             if ((pstcInternHandle->stcGpios.i8RtsPin != -1) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeRts) && (stcUartGpios[i].u8Gpio == pstcInternHandle->stcGpios.i8RtsPin))
             {
@@ -1513,10 +1544,12 @@ void ApolloUart_InitGpios(UART_Type* pstcUart)
             }
             if ((pstcInternHandle->stcGpios.i8RxPin != -1) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeRx) && (stcUartGpios[i].u8Gpio == pstcInternHandle->stcGpios.i8RxPin))
             {
+                ApolloGpio_GpioInputEnable(pstcInternHandle->stcGpios.i8RxPin,TRUE);
                 ApolloGpio_GpioSelectFunction(stcUartGpios[i].u8Gpio,stcUartGpios[i].u8Function);
             }
             if ((pstcInternHandle->stcGpios.i8TxPin != -1) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeTx) && (stcUartGpios[i].u8Gpio == pstcInternHandle->stcGpios.i8TxPin))
             {
+                ApolloGpio_GpioOutputEnable(pstcInternHandle->stcGpios.i8RxPin,TRUE);
                 ApolloGpio_GpioSelectFunction(stcUartGpios[i].u8Gpio,stcUartGpios[i].u8Function);
             }
         }
@@ -1531,7 +1564,7 @@ void ApolloUart_InitGpios(UART_Type* pstcUart)
  **
  ** \param  cbTxNext         Callback retreiving next data
  **
- ** \param  cbTxNext         Callback after data was received
+ ** \param  cbRx             Callback after data was received
  **
  *****************************************************************************/
 void ApolloUart_RegisterCallbacks(UART_Type* pstcUart,pfn_apollouart_txnext_t cbTxNext, pfn_apollouart_rx_t cbRx)
@@ -1989,7 +2022,8 @@ void Uart_Deinit(void)
 {
 
 }
-
+#else
+#warning Low-Level-Driver for Apollo 1/2 UART is disabled and could be removed from the project
 #endif //(APOLLOUART_ENABLED == 1) || (APOLLOUART0_ENABLED == 1) || (APOLLOUART1_ENABLED == 1)
 
 /******************************************************************************/
