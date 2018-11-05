@@ -46,7 +46,7 @@
 /* Include files                                                             */
 /*****************************************************************************/
 #include "itmsemihost.h"
-
+#include "mcu.h"
 #if ITMSEMIHOST_ENABLED == 1
 /*****************************************************************************/
 /* Local pre-processor symbols/macros ('#define')                            */
