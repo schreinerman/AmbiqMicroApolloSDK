@@ -44,6 +44,8 @@ so agrees to indemnify Fujitsu against all liability.
  **                                          enabled as input / output
  **   - 2018-07-06  V1.4  Manuel Schreiner   Updated documentation, 
  **                                          now part of the FEEU ClickBeetle(TM) SW Framework
+ **   - 2018-10-29  V1.5  Manuel Schreiner   Fixed IRQ handling
+ **                                          Added Arduino API, enable via RTE_Device.h APOLLOGPIO_USE_ARDUINO
  **
  *****************************************************************************/
 #ifndef __APOLLOGPIO_H__
