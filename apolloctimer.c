@@ -50,6 +50,7 @@ so agrees to indemnify Fujitsu against all liability.
 /*****************************************************************************/
 
 #include "apolloctimer.h"
+#include "mcu.h"
 
 #if (CTIMER0_ENABLED == 1) || (CTIMER1_ENABLED == 1) || (CTIMER2_ENABLED == 1) || (CTIMER3_ENABLED == 1) || (APOLLOCTIMER_ENABLED == 1)
 /*****************************************************************************/

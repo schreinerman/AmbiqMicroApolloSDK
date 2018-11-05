@@ -143,7 +143,7 @@ extern "C"
   #warning Not supported compiler type
 #endif
 
-#if defined(APOLLO2_H)
+#if defined(APOLLO2_H) || defined(APOLLO3_H)
 typedef struct stc_apolloctimer_timer
 {
   union {
