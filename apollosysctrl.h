@@ -110,6 +110,9 @@ extern "C"
 #elif defined(APOLLO2_H)
     #define APOLLOSYSCTRL_48MHZ  0x00000000
     #define APOLLOSYSCTRL_24MHZ  0x00000001 
+#elif defined(APOLLO3_H)
+    #define APOLLOSYSCTRL_48MHZ  0x00000000
+    #define APOLLOSYSCTRL_24MHZ  0x00000001 
 #endif
 
 /*****************************************************************************/

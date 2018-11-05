@@ -49,7 +49,7 @@ so agrees to indemnify Fujitsu against all liability.
 /*****************************************************************************/
 
 #include "apollosysctrl.h"
-
+#include "mcu.h"
 /*****************************************************************************/
 /* Local pre-processor symbols/macros ('#define')                            */
 /*****************************************************************************/
@@ -238,7 +238,11 @@ boolean_t ApolloSysCtrl_XtFaiture(void)
  ******************************************************************************/
 void ApolloSysCtrl_AutoCalFailIrqEnable(boolean_t bOnOff)
 {
+#if defined(APOLLO_H) || defined(APOLLO1_H) || defined(APOLLO2_H)
     CLKGEN->INTEN_b.ACF = bOnOff;
+#else
+    CLKGEN->INTRPTEN_b.ACF = bOnOff;
+#endif
 }
 
 /**
@@ -250,7 +254,11 @@ void ApolloSysCtrl_AutoCalFailIrqEnable(boolean_t bOnOff)
  ******************************************************************************/
 void ApolloSysCtrl_AutoCalCompleteIrqEnable(boolean_t bOnOff)
 {
+#if defined(APOLLO_H) || defined(APOLLO1_H) || defined(APOLLO2_H)
     CLKGEN->INTEN_b.ACC = bOnOff;
+#else
+    CLKGEN->INTRPTEN_b.ACC = bOnOff;
+#endif
 }
 
 /**
@@ -262,9 +270,14 @@ void ApolloSysCtrl_AutoCalCompleteIrqEnable(boolean_t bOnOff)
  ******************************************************************************/
 void ApolloSysCtrl_OscXtFailIrqEnable(boolean_t bOnOff)
 {
+#if defined(APOLLO_H) || defined(APOLLO1_H) || defined(APOLLO2_H)
     CLKGEN->INTEN_b.OF = bOnOff;
+#else
+    CLKGEN->INTRPTEN_b.OF = bOnOff;
+#endif
 }
 
+#if defined(APOLLO_H) || defined(APOLLO1_H) || defined(APOLLO2_H)
 /**
  ******************************************************************************
  ** \brief  Turn on/off the RTC alarm interrupt
@@ -276,6 +289,7 @@ void ApolloSysCtrl_RtcAlarmIrqEnable(boolean_t bOnOff)
 {
     CLKGEN->INTEN_b.ALM = bOnOff;
 }
+#endif
 
 /**
  ******************************************************************************
