@@ -41,6 +41,7 @@ so agrees to indemnify Fujitsu against all liability.
  **   - 2018-06-07  V1.1  Manuel Schreiner   Added missing ApolloAdc_SimpleRead prototype  
  **   - 2018-07-06  V1.2  Manuel Schreiner   Updated documentation, 
  **                                          now part of the FEEU ClickBeetle(TM) SW Framework
+ **   - 2018-08-09  V1.3  Manuel Schreiner   Added support for Apollo3
  **
  *****************************************************************************/
 #define __APOLLOADC_C__
@@ -49,6 +50,7 @@ so agrees to indemnify Fujitsu against all liability.
 /*****************************************************************************/
 #include "base_types.h"
 #include "apolloadc.h"
+#include "mcu.h"
 #if APOLLOGPIO_ENABLED == 1
 #include "apollogpio.h"
 #endif
@@ -70,7 +72,7 @@ so agrees to indemnify Fujitsu against all liability.
 /*****************************************************************************/
 
 #if defined(__CC_ARM)
-  #pragma push
+  //#pragma push
   #pragma anon_unions
 #elif defined(__ICCARM__)
   #pragma language=extended
@@ -99,7 +101,7 @@ typedef struct stc_adc_fifo_data
     } FIFO_b;                                       /*!< BitSize                                                               */
   };
 } stc_adc_fifo_data_t;
-#elif defined(APOLLO2_H)
+#elif defined(APOLLO2_H) || defined(APOLLO3_H)
 typedef struct stc_adc_fifo_data
 {
     union {
@@ -117,7 +119,7 @@ typedef struct stc_adc_fifo_data
 
 
 #if defined(__CC_ARM)
-  #pragma pop
+  //#pragma pop
 #elif defined(__ICCARM__)
   /* leave anonymous unions enabled */
 #elif defined(__GNUC__)
@@ -196,8 +198,12 @@ float32_t ApolloAdc_SimpleRead(uint32_t pin, boolean_t bLowPower)
     uint32_t u32Cfg = 0;
     boolean_t bBandgapStatus = FALSE;
     bBandgapStatus = bBandgapStatus;
-    #if defined(APOLLO2_H)
+    #if defined(APOLLO2_H) 
         PWRCTRL->DEVICEEN |= (1 << PWRCTRL_DEVICEEN_ADC_Pos);
+    #endif
+    #if defined(APOLLO3_H)
+        PWRCTRL->DEVPWREN_b.PWRADC = 1;
+        while(PWRCTRL->ADCSTATUS_b.ADCPWD == 0) __NOP();
     #endif
 	
     #if defined(APOLLO_H) ||  defined(APOLLO1_H)
@@ -207,25 +213,25 @@ float32_t ApolloAdc_SimpleRead(uint32_t pin, boolean_t bLowPower)
     
     ADC->CFG = 0;
     
-    #if defined(APOLLO2_H) 
+    #if defined(APOLLO2_H) || defined(APOLLO3_H) 
         u32Cfg |= (1 << ADC_CFG_CKMODE_Pos); //Low Latency Clock Mode
         ADC->CFG_b.CKMODE = 1;               
     #endif
 
     #if defined(APOLLO_H) ||  defined(APOLLO1_H)
         u32Cfg |= (4 << ADC_CFG_CLKSEL_Pos); //1.5MHz clock              
-    #elif defined(APOLLO2_H)
+    #elif defined(APOLLO2_H) || defined(APOLLO3_H)
         u32Cfg |= (1 << ADC_CFG_CLKSEL_Pos); //HCLK 
     #endif
     #if defined(APOLLO_H) ||  defined(APOLLO1_H)
         u32Cfg |= (8 << ADC_CFG_TRIGSEL_Pos); //Software Trigger                 
-    #elif defined(APOLLO2_H)
+    #elif defined(APOLLO2_H) || defined(APOLLO3_H)
         u32Cfg |= (7 << ADC_CFG_TRIGSEL_Pos); //Software Trigger   
     #endif
 
     #if defined(APOLLO_H) ||  defined(APOLLO1_H)
         u32Cfg |= (1 << ADC_CFG_REFSEL_Pos); //select VDD as voltage reference                 
-    #elif defined(APOLLO2_H)
+    #elif defined(APOLLO2_H) || defined(APOLLO3_H)
         u32Cfg |= (0 << ADC_CFG_REFSEL_Pos); //select internal 2V as voltage reference
     #endif
     #if defined(APOLLO_H)
@@ -234,7 +240,7 @@ float32_t ApolloAdc_SimpleRead(uint32_t pin, boolean_t bLowPower)
 
     #if defined(APOLLO_H) ||  defined(APOLLO1_H)
         u32Cfg |= (2 << ADC_CFG_LPMODE_Pos); //Low Power Mode 2
-    #elif defined(APOLLO2_H) 
+    #elif defined(APOLLO2_H)  || defined(APOLLO3_H)
         u32Cfg |= (1 << ADC_CFG_LPMODE_Pos); //Low Power Mode 1
     #endif
     u32Cfg |= (0 << ADC_CFG_RPTEN_Pos); //Repeated Mode
@@ -304,6 +310,42 @@ float32_t ApolloAdc_SimpleRead(uint32_t pin, boolean_t bLowPower)
             default:
                                 return -1;
         }
+    #elif defined(APOLLO3_H)
+        switch(pin)
+        {
+            case 16:
+                    ADC->SL1CFG_b.CHSEL1 = 0;             //use ch 0 for slot 1
+                    break;
+            case 29:
+                    ADC->SL1CFG_b.CHSEL1 = 1;             //use ch 1 for slot 1
+                    break;
+            case 11:
+                    ADC->SL1CFG_b.CHSEL1 = 2;             //use ch 2 for slot 1
+                    break;
+            case 31:
+                    ADC->SL1CFG_b.CHSEL1 = 3;             //use ch 3 for slot 1
+                    break;
+            case 32:
+                    ADC->SL1CFG_b.CHSEL1 = 4;             //use ch 4 for slot 1
+                    break;
+            case 33:
+                    ADC->SL1CFG_b.CHSEL1 = 5;             //use ch 5 for slot 1
+                    break;
+            case 34:
+                    ADC->SL1CFG_b.CHSEL1 = 6;             //use ch 6 for slot 1
+                    break;
+            case 35:
+                    ADC->SL1CFG_b.CHSEL1 = 7;             //use ch 7 for slot 1
+                    break;
+            case 13:
+                    ADC->SL1CFG_b.CHSEL1 = 8;             //use ch 8 for slot 1
+                    break;
+            case 12:
+                    ADC->SL1CFG_b.CHSEL1 = 9;             //use ch 9 for slot 1
+                    break;
+            default:
+                                return -1;
+        }
     #else
         #error No supported MCU found
     #endif
@@ -313,7 +355,7 @@ float32_t ApolloAdc_SimpleRead(uint32_t pin, boolean_t bLowPower)
     #if defined(APOLLO_H) ||  defined(APOLLO1_H)
         ADC->SL1CFG_b.THSEL1 = 0;             //use 1 ADC clock cycles
     #endif
-    #if defined(APOLLO2_H)
+    #if defined(APOLLO2_H) || defined(APOLLO3_H)
         ADC->SL1CFG_b.PRMODE1 = 0;             //use 14-bit
 	#endif
     ADC->SL1CFG_b.WCEN1 = 0;              //disable window compare
@@ -357,6 +399,9 @@ float32_t ApolloAdc_SimpleRead(uint32_t pin, boolean_t bLowPower)
     #if defined(APOLLO2_H)
         PWRCTRL->DEVICEEN &= ~(1 << PWRCTRL_DEVICEEN_ADC_Pos);
     #endif
+    #if defined(APOLLO3_H)
+        PWRCTRL->DEVPWREN_b.PWRADC = 0;
+    #endif
         
     #if defined(APOLLO_H)
         MCUCTRL->BANDGAPEN_b.BGPEN = bBandgapStatus;  
@@ -364,7 +409,7 @@ float32_t ApolloAdc_SimpleRead(uint32_t pin, boolean_t bLowPower)
     
     #if defined(APOLLO_H) ||  defined(APOLLO1_H)
         return u32AdcData / 65535.0f;
-    #elif defined(APOLLO2_H)
+    #elif defined(APOLLO2_H) || defined(APOLLO3_H)
         return u32AdcData / 1048512.0f;
     #endif
 }
@@ -396,7 +441,11 @@ float32_t ApolloAdc_CheckBattery(boolean_t bLowPower)
     ADC->CFG = 0;
     
     //ADC->CFG_b.BATTLOAD = 1;
+#if defined(APOLLO3_H)
+    MCUCTRL->ADCBATTLOAD_b.BATTLOAD = 1;
+#else
     u32Cfg |= (1 << ADC_CFG_BATTLOAD_Pos);
+#endif
     
     #if defined(APOLLO2_H) 
         u32Cfg |= (1 << ADC_CFG_CKMODE_Pos); //Low Latency Clock Mode
@@ -434,7 +483,7 @@ float32_t ApolloAdc_CheckBattery(boolean_t bLowPower)
     
     #if defined(APOLLO_H) ||  defined(APOLLO1_H)
         ADC->SL1CFG_b.CHSEL1 = 12;             //use ch 0 for slot 1
-    #elif defined(APOLLO2_H)
+    #elif defined(APOLLO2_H) || defined(APOLLO3_H)
         ADC->SL1CFG_b.CHSEL1 = 12;             //use ch 0 for slot 1
     #else
         #error No supported MCU found
@@ -484,11 +533,17 @@ float32_t ApolloAdc_CheckBattery(boolean_t bLowPower)
     {
         if (!bLowPower) checkadc();
     }
+#if defined(APOLLO3_H)
+    MCUCTRL->ADCBATTLOAD_b.BATTLOAD = 0;
+#else
+    ADC->CFG_b.BATTLOAD = 0;
+#endif
+    
     ADC->CFG_b.ADCEN = 0;                 //disable the ADC
     
     #if defined(APOLLO_H) ||  defined(APOLLO1_H)
         ADC->SL1CFG_b.CHSEL1 = 0;             //use ch 0 for slot 1
-    #elif defined(APOLLO2_H)
+    #elif defined(APOLLO2_H) || defined(APOLLO3_H)
         ADC->SL1CFG_b.CHSEL1 = 0;             //use ch 0 for slot 1
     #else
         #error No supported MCU found

@@ -41,6 +41,7 @@ so agrees to indemnify Fujitsu against all liability.
  **   - 2018-06-07  V1.1  Manuel Schreiner   Added missing ApolloAdc_SimpleRead prototype  
  **   - 2018-07-06  V1.2  Manuel Schreiner   Updated documentation, 
  **                                          now part of the FEEU ClickBeetle(TM) SW Framework
+ **   - 2018-08-09  V1.3  Manuel Schreiner   Added support for Apollo3
  **
  *****************************************************************************/
 #ifndef __APOLLOADC_H__
@@ -87,7 +88,6 @@ extern "C"
 /*****************************************************************************/
 
 #include "mcu.h"
-     
 
 /*****************************************************************************/
 /* Global pre-processor symbols/macros ('#define')                            */
