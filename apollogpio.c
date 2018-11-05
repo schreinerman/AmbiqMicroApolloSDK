@@ -44,6 +44,8 @@ so agrees to indemnify Fujitsu against all liability.
  **                                          enabled as input / output
  **   - 2018-07-06  V1.4  Manuel Schreiner   Updated documentation, 
  **                                          now part of the FEEU ClickBeetle(TM) SW Framework
+ **   - 2018-10-29  V1.5  Manuel Schreiner   Fixed IRQ handling
+ **                                          Added Arduino API, enable via RTE_Device.h APOLLOGPIO_USE_ARDUINO
  **
  *****************************************************************************/
 #define __APOLLOGPIO_C__
@@ -52,6 +54,7 @@ so agrees to indemnify Fujitsu against all liability.
 /*****************************************************************************/
 
 #include "apollogpio.h"
+#include "mcu.h"
 
 #if (APOLLOGPIO_ENABLED == 1)
 
@@ -119,7 +122,7 @@ void GPIO_IRQHandler(void)
         {
             if (apfnCallbacks[i + 32] != NULL)
             {
-                apfnCallbacks[i + 32](i);
+                apfnCallbacks[i + 32](i + 32);
             }
             u32Clear |= (1 << i);
         }
@@ -233,6 +236,7 @@ boolean_t ApolloGpio_IrqExecute(apollogpio_gpio_pin_t pin)
 void ApolloGpio_RegisterIrq(apollogpio_gpio_pin_t pin, en_apollogpio_edgedetect_t enMode, uint32_t u32Priority, pfn_apollogpio_callback_t pfnCallback)
 {
     uint32_t u32Status;
+
     if (pin < 32)
     {
         GPIO->INT0EN &= ~(1 << pin);
@@ -240,7 +244,7 @@ void ApolloGpio_RegisterIrq(apollogpio_gpio_pin_t pin, en_apollogpio_edgedetect_
     {
         GPIO->INT1EN &= ~(1 << (pin - 32));
     }
-    apfnCallbacks[pin] = pfnCallback;
+    
     GPIO->PADKEY = 0x00000073;
     switch(enMode)
     {
@@ -253,8 +257,33 @@ void ApolloGpio_RegisterIrq(apollogpio_gpio_pin_t pin, en_apollogpio_edgedetect_
 
     }
     GPIO->PADKEY = 0x00000000;
- 
-    if (pin < 32)
+    if (apfnCallbacks[pin] != pfnCallback)
+    {
+        apfnCallbacks[pin] = pfnCallback;
+        if (pin < 32)
+        {
+            u32Status = (GPIO->INT0STAT & (1 << pin));
+            GPIO->INT0CLR = u32Status;
+            GPIO->INT0EN |= (1 << pin);
+        } else
+        {
+            u32Status = (GPIO->INT1STAT & (1 << (pin - 32)));
+            GPIO->INT1CLR = u32Status;
+            GPIO->INT1EN |= (1 << (pin - 32));
+        }
+        
+        if ((GPIO->INT0EN > 0) || (GPIO->INT1EN > 0))
+        {
+            NVIC_DisableIRQ(GPIO_IRQn);                    //enable IRQ
+            NVIC_ClearPendingIRQ(GPIO_IRQn);              //clear pending flag 
+            NVIC_EnableIRQ(GPIO_IRQn);                    //enable IRQ
+            NVIC_SetPriority(GPIO_IRQn,u32Priority);      //set priority of IRQ, smaller value means higher priority
+        } else
+        {
+            NVIC_ClearPendingIRQ(GPIO_IRQn);              //clear pending flag 
+            NVIC_DisableIRQ(GPIO_IRQn);                    //enable IRQ
+        }
+    } else if (pin < 32)
     {
         u32Status = (GPIO->INT0STAT & (1 << pin));
         GPIO->INT0CLR = u32Status;
@@ -264,17 +293,6 @@ void ApolloGpio_RegisterIrq(apollogpio_gpio_pin_t pin, en_apollogpio_edgedetect_
         u32Status = (GPIO->INT1STAT & (1 << (pin - 32)));
         GPIO->INT1CLR = u32Status;
         GPIO->INT1EN |= (1 << (pin - 32));
-    }
-    
-    if (GPIO->INT0EN > 0)
-    {
-        NVIC_ClearPendingIRQ(GPIO_IRQn);              //clear pending flag 
-        NVIC_EnableIRQ(GPIO_IRQn);                    //enable IRQ
-        NVIC_SetPriority(GPIO_IRQn,u32Priority);      //set priority of IRQ, smaller value means higher priority
-    } else
-    {
-        NVIC_ClearPendingIRQ(GPIO_IRQn);              //clear pending flag 
-        NVIC_DisableIRQ(GPIO_IRQn);                    //enable IRQ
     }
     
 }
@@ -345,8 +363,175 @@ void ApolloGpio_GpioSet(apollogpio_gpio_pin_t pin, boolean_t bOnOff)
       } else
       {
           GPIO->WTCB = (1 << (pin - 32));
-      }
+      } 
     }
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Get the register address and mask for a specific pin for the data out register
+ **
+ ** \param pin  Can be every GPIO pin  
+ **             for example 1, 2, ... 49
+ **
+ ** \param [out] pstcRegisterMaskPair pointer to store register & mask pair
+ **
+ ** \return Ok 
+ **
+ ** \details Example:
+ ** @code  
+ ** stc_apollogpio_register_mask_pair_t stcTogglePin;
+ **
+ ** ApolloGpio_GpioOutputEnable(42,TRUE);
+ ** ApolloGpio_GetRegisterAddressDataOut(42,&stcTogglePin);
+ **
+ ** while(1)
+ ** {
+ **     *stcTogglePin.pRegister |= stcTogglePin.u32Mask;  //set   GPIO 42
+ **     *stcTogglePin.pRegister &= ~stcTogglePin.u32Mask; //clear GPIO 42
+ ** }
+ **
+ ** @endcode
+ **
+ ** Alternatively following code is doing the same, but slower:
+ ** @code  
+ ** ApolloGpio_GpioOutputEnable(42,TRUE);
+ ** while(1)
+ ** {
+ **     ApolloGpio_GpioSet(42,TRUE);
+ **     ApolloGpio_GpioSet(42,FALSE);
+ ** }
+ ** @endcode
+ **
+ ******************************************************************************/
+en_result_t ApolloGpio_GetRegisterAddressDataOut(apollogpio_gpio_pin_t pin,stc_apollogpio_register_mask_pair_t* pstcRegisterMaskPair)
+{
+    if (pin < 32)
+    {
+       pstcRegisterMaskPair->u32Pin = pin;
+       pstcRegisterMaskPair->u32Mask = (1 << pin);
+       pstcRegisterMaskPair->pRegister = &GPIO->WTA; 
+       return Ok;
+    } else if (pin < 49)
+    {
+       pstcRegisterMaskPair->u32Pin = pin;
+       pstcRegisterMaskPair->u32Mask = (1 << (pin-32));
+       pstcRegisterMaskPair->pRegister = &GPIO->WTB; 
+       return Ok;
+    }
+    return Error;
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Get the register address and mask for a specific pin for the data out set bit register
+ **
+ ** \param pin  Can be every GPIO pin  
+ **             for example 1, 2, ... 49
+ **
+ ** \param [out] pstcRegisterMaskPair pointer to store register & mask pair
+ **
+ ** \return Ok 
+ **
+ ** \details Example:
+ ** @code  
+ ** stc_apollogpio_register_mask_pair_t stcTogglePinSet;
+ ** stc_apollogpio_register_mask_pair_t stcTogglePinClear;
+ **
+ ** ApolloGpio_GpioOutputEnable(42,TRUE);
+ ** ApolloGpio_GetRegisterAddressDataOutSet(42,&stcTogglePinSet);
+ ** ApolloGpio_GetRegisterAddressDataOutClear(42,&stcTogglePinClear);
+ ** while(1)
+ ** {
+ **     *stcTogglePinSet.pRegister    = stcTogglePinSet.u32Mask;   //set   GPIO 42
+ **     *stcTogglePinClear.pRegister  = stcTogglePinClear.u32Mask; //clear GPIO 42
+ ** }
+ **
+ ** @endcode
+ **
+ ** Alternatively following code is doing the same, but slower:
+ ** @code  
+ ** ApolloGpio_GpioOutputEnable(42,TRUE);
+ ** while(1)
+ ** {
+ **     ApolloGpio_GpioSet(42,TRUE);
+ **     ApolloGpio_GpioSet(42,FALSE);
+ ** }
+ ** @endcode
+ **
+ ******************************************************************************/
+en_result_t ApolloGpio_GetRegisterAddressDataOutSet(apollogpio_gpio_pin_t pin,stc_apollogpio_register_mask_pair_t* pstcRegisterMaskPair)
+{
+    if (pin < 32)
+    {
+       pstcRegisterMaskPair->u32Pin = pin;
+       pstcRegisterMaskPair->u32Mask = (1 << pin);
+       pstcRegisterMaskPair->pRegister = &GPIO->WTSA; 
+       return Ok;
+    } else if (pin < 49)
+    {
+       pstcRegisterMaskPair->u32Pin = pin;
+       pstcRegisterMaskPair->u32Mask = (1 << (pin-32));
+       pstcRegisterMaskPair->pRegister = &GPIO->WTSB; 
+       return Ok;
+    }
+    return Error;
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Get the register address and mask for a specific pin for the data out clear bit register
+ **
+ ** \param pin  Can be every GPIO pin  
+ **             for example 1, 2, ... 49
+ **
+ ** \param [out] pstcRegisterMaskPair pointer to store register & mask pair
+ **
+ ** \return Ok 
+ **
+ ** \details Example:
+ ** @code  
+ ** stc_apollogpio_register_mask_pair_t stcTogglePinSet;
+ ** stc_apollogpio_register_mask_pair_t stcTogglePinClear;
+ **
+ ** ApolloGpio_GpioOutputEnable(42,TRUE);
+ ** ApolloGpio_GetRegisterAddressDataOutSet(42,&stcTogglePinSet);
+ ** ApolloGpio_GetRegisterAddressDataOutClear(42,&stcTogglePinClear);
+ ** while(1)
+ ** {
+ **     *stcTogglePinSet.pRegister    = stcTogglePinSet.u32Mask;   //set   GPIO 42
+ **     *stcTogglePinClear.pRegister  = stcTogglePinClear.u32Mask; //clear GPIO 42
+ ** }
+ **
+ ** @endcode
+ **
+ ** Alternatively following code is doing the same, but slower:
+ ** @code  
+ ** ApolloGpio_GpioOutputEnable(42,TRUE);
+ ** while(1)
+ ** {
+ **     ApolloGpio_GpioSet(42,TRUE);
+ **     ApolloGpio_GpioSet(42,FALSE);
+ ** }
+ ** @endcode
+ **
+ ******************************************************************************/
+en_result_t ApolloGpio_GetRegisterAddressDataOutClear(apollogpio_gpio_pin_t pin,stc_apollogpio_register_mask_pair_t* pstcRegisterMaskPair)
+{
+    if (pin < 32)
+    {
+       pstcRegisterMaskPair->u32Pin = pin;
+       pstcRegisterMaskPair->u32Mask = (1 << pin);
+       pstcRegisterMaskPair->pRegister = &GPIO->WTCA; 
+       return Ok;
+    } else if (pin < 49)
+    {
+       pstcRegisterMaskPair->u32Pin = pin;
+       pstcRegisterMaskPair->u32Mask = (1 << (pin-32));
+       pstcRegisterMaskPair->pRegister = &GPIO->WTCB; 
+       return Ok;
+    }
+    return Error;
 }
 
 /**
@@ -548,6 +733,56 @@ void ApolloGpio_GpioSelectPullup(apollogpio_gpio_pin_t pin, en_apollogpio_pullup
     }
     GPIO->PADKEY = 0x00000000;
 }
+
+#if APOLLOGPIO_USE_ARDUINO == 1
+void pinMode(uint8_t pin, uint8_t mode)
+{
+    if (pin > 50) return;
+    ApolloGpio_GpioSelectFunction(pin,3);
+    if (mode == INPUT) { 
+        ApolloGpio_GpioOutputEnable(pin,FALSE);
+        ApolloGpio_GpioInputEnable(pin,TRUE);
+        ApolloGpio_GpioPullupEnable(pin,FALSE);
+    } else if (mode == INPUT_PULLUP) {
+        ApolloGpio_GpioOutputEnable(pin,FALSE);
+	ApolloGpio_GpioInputEnable(pin,TRUE);
+        ApolloGpio_GpioPullupEnable(pin,TRUE);
+    } else {
+	ApolloGpio_GpioOutputEnable(pin,TRUE);
+        ApolloGpio_GpioInputEnable(pin,FALSE);
+        ApolloGpio_GpioPullupEnable(pin,FALSE);
+    }
+}
+void attachInterrupt(uint8_t interruptNum, void (*userFunc)(void), int mode) 
+{
+   if (interruptNum > 50) return;
+   switch(mode)
+   {
+       case LOW:
+           ApolloGpio_RegisterIrq(interruptNum,GpioFallingEdge,1,(pfn_apollogpio_callback_t)userFunc);
+           if (digitalRead(interruptNum) == LOW)
+           {
+               userFunc();
+           }
+           break;
+       case HIGH:
+           ApolloGpio_RegisterIrq(interruptNum,GpioRisingEdge,1,(pfn_apollogpio_callback_t)userFunc);
+           if (digitalRead(interruptNum) == HIGH)
+           {
+               userFunc();
+           }
+           break;
+       case RISING:
+           ApolloGpio_RegisterIrq(interruptNum,GpioRisingEdge,1,(pfn_apollogpio_callback_t)userFunc);
+           break;
+       case FALLING:
+           ApolloGpio_RegisterIrq(interruptNum,GpioRisingEdge,1,(pfn_apollogpio_callback_t)userFunc);
+           break;
+   }
+    
+}
+#endif
+
 #else
 #warning Low-Level-Driver for Apollo 1/2 GPIO is disabled and could be removed from the project
 #endif /* (APOLLOGPIO_ENABLED == 1) */

@@ -108,8 +108,9 @@ extern "C"
 /* Include files                                                             */
 /*****************************************************************************/
 
-#include "mcu.h"
+
 #include "base_types.h"
+#include "mcu.h"
 
 #if defined(APOLLOGPIO_USE_MBED)
 #include "board.h" //needed for PinName enumeration
@@ -121,21 +122,92 @@ extern "C"
 /* Global pre-processor symbols/macros ('#define')                            */
 /*****************************************************************************/
 
-#define APOLLOGPIO_PADREG(n) *(volatile uint32_t*)(0x40010000 + (n/4) * 4)
-     
-#define APOLLOGPIO_CFG(n) *(volatile uint32_t*)(0x40010040 + (n/8) * 4)
+#if !defined(MASK_BITLEN)
+    #define MASK_BITLEN
+    #define MASK_BITLEN1          0x1
+    #define MASK_BITLEN2          0x3
+    #define MASK_BITLEN3          0x7
+    #define MASK_BITLEN4          0xF
+    #define MASK_BITLEN5         0x1F
+    #define MASK_BITLEN6         0x3F
+    #define MASK_BITLEN7         0x7F
+    #define MASK_BITLEN8         0xFF
+    #define MASK_BITLEN9        0x1FF
+    #define MASK_BITLEN10       0x3FF
+    #define MASK_BITLEN11       0x7FF
+    #define MASK_BITLEN12       0xFFF
+    #define MASK_BITLEN13      0x1FFF
+    #define MASK_BITLEN14      0x3FFF
+    #define MASK_BITLEN15      0x7FFF
+    #define MASK_BITLEN16      0xFFFF
+    #define MASK_BITLEN17     0x1FFFF
+    #define MASK_BITLEN18     0x3FFFF
+    #define MASK_BITLEN19     0x7FFFF
+    #define MASK_BITLEN20     0xFFFFF
+    #define MASK_BITLEN21    0x1FFFFF
+    #define MASK_BITLEN22    0x3FFFFF
+    #define MASK_BITLEN23    0x7FFFFF
+    #define MASK_BITLEN24    0xFFFFFF
+    #define MASK_BITLEN25   0x1FFFFFF
+    #define MASK_BITLEN26   0x3FFFFFF
+    #define MASK_BITLEN27   0x7FFFFFF
+    #define MASK_BITLEN28   0xFFFFFFF
+    #define MASK_BITLEN29  0x1FFFFFFF
+    #define MASK_BITLEN30  0x3FFFFFFF
+    #define MASK_BITLEN31  0x7FFFFFFF
+    #define MASK_BITLEN32  0xFFFFFFFF
+#endif
+
+//registersize = 32bit = 4 byte, Configuration bitlen = 4; configurations per register = 32/4 = 8, register addresses are in 4 byte steps
+//
+//                                                                          config per register = 8
+//                                                                           |   reg-size in bytes = 4
+//                                                                           |    |
+#define APOLLOGPIO_CFG(n) *(volatile uint32_t*)(((uint32_t)&GPIO->CFGA) + (n/8) * 4)
+
+#define APOLLOGPIO_CFG_GET(n,mask) (APOLLOGPIO_CFG(n) & (mask << (((n) % 8)*4))) >> (((n) % 8)*4))
 #define APOLLOGPIO_CFG_SET(n,val) APOLLOGPIO_CFG(n) |= val << (((n) % 8)*4)
 #define APOLLOGPIO_CFG_CLR(n,val) APOLLOGPIO_CFG(n) &= ~(val << (((n) % 8)*4))
 #define APOLLOGPIO_CFG_ZERO(n) APOLLOGPIO_CFG(n) &= ~(0xF << (((n) % 8) * 4))
-#define APOLLOGPIO_CFG_GET(n,val) APOLLOGPIO_CFG(n) val >> (((n) % 8)*4)
 #define APOLLOGPIO_CFG_WRITE(n,mask,val) APOLLOGPIO_CFG_CLR(n,mask); APOLLOGPIO_CFG_SET(n,val)  
-     
-#define APOLLOGPIO_PADREG_SET(n,val) APOLLOGPIO_PADREG(n) |= val << (((n) % 4)*8)
-#define APOLLOGPIO_PADREG_CLR(n,val) APOLLOGPIO_PADREG(n) &= ~(val << (((n) % 4)*8))
+
+#define GPIO_CFG_GPIOINTD_Pos           (1 << 3)
+#define GPIO_CFG_GPIOINTD_Msk           (MASK_BITLEN1 << GPIO_CFG_GPIOINTD_Pos)
+#define GPIO_CFG_GPIOOUTCFG_Pos         (1 << 1)
+#define GPIO_CFG_GPIOOUTCFG_Msk         (MASK_BITLEN2 << GPIO_CFG_GPIOOUTCFG_Pos)
+#define GPIO_CFG_GPIOINCFG_Pos          (1 << 0)
+#define GPIO_CFG_GPIOINCFG_Msk          (MASK_BITLEN1 << GPIO_CFG_GPIOINCFG_Pos)
+
+
+
+
+//registersize = 32bit = 4 byte, Padregconfig bitlen = 8; padregconfig per register = 32/8 = 4, register addresses are in 4 byte steps
+//
+//                                                                                padregconfig per register = 4
+//                                                                                 |   reg-size in bytes = 4
+//                                                                                 |    |
+#define APOLLOGPIO_PADREG(n) *(volatile uint32_t*)(((uint32_t)&GPIO->PADREGA) + (n/4) * 4)     
+
+#define APOLLOGPIO_PADREG_GET(n,mask) (APOLLOGPIO_PADREG(n) & (mask << (((n) % 4)*8))) >> (((n) % 4)*8))
+#define APOLLOGPIO_PADREG_SET(n,val)  APOLLOGPIO_PADREG(n) |= val << (((n) % 4)*8)
+#define APOLLOGPIO_PADREG_CLR(n,val)  APOLLOGPIO_PADREG(n) &= ~(val << (((n) % 4)*8))
 #define APOLLOGPIO_PADREG_ZERO(n) APOLLOGPIO_PADREG(n) &= ~(0xFF << (((n) % 4)*8))
 #define APOLLOGPIO_PADREG_WRITE(n,mask,val) APOLLOGPIO_PADREG_CLR(n,mask); APOLLOGPIO_PADREG_SET(n,val) 
-     
-#define SET_OUTPUT_GPIO(n) APOLLOGPIO_PADREG_SET(n,(0x3 << 3)); APOLLOGPIO_CFG_SET(n,(0x01 << 1));
+
+#define GPIO_PADREG_PADPWRUP_Pos    (1 << 7)      
+#define GPIO_PADREG_PADPWRUP_Msk    (MASK_BITLEN1 << GPIO_PADREG_PADPWRUP_Pos) 
+#define GPIO_PADREG_PADPWRDN_Pos    (1 << 6)     
+#define GPIO_PADREG_PADPWRDN_Msk    (MASK_BITLEN1 << GPIO_PADREG_PADPWRDN_Pos)  
+#define GPIO_PADREG_PADRSEL_Pos     (1 << 6)     
+#define GPIO_PADREG_PADRSEL_Msk     (MASK_BITLEN2 << GPIO_PADREG_PADRSEL_Pos)  
+#define GPIO_PADREG_PADFNCSEL_Pos   (1 << 3)      
+#define GPIO_PADREG_PADFNCSEL_Msk   (MASK_BITLEN3 << GPIO_PADREG_PADFNCSEL_Pos)      
+#define GPIO_PADREG_PADSTRNG_Pos    (1 << 2)      
+#define GPIO_PADREG_PADSTRNG_Msk    (MASK_BITLEN1 << GPIO_PADREG_PADSTRNG_Pos)          
+#define GPIO_PADREG_PADINPEN_Pos    (1 << 1)      
+#define GPIO_PADREG_PADINPEN_Msk    (MASK_BITLEN1 << GPIO_PADREG_PADINPEN_Pos)      
+#define GPIO_PADREG_PADPULL_Pos     (1 << 0)        
+#define GPIO_PADREG_PADPULL_Msk     (MASK_BITLEN1 << GPIO_PADREG_PADPULL_Pos)
 
 #define	PIN_GPIO0	0
 #define	PIN_GPIO1	1
@@ -188,11 +260,26 @@ extern "C"
 #define	PIN_GPIO48	48
 #define	PIN_GPIO49	49
 
+
 #define SET_GPIO(n)       (n < 32) ? (GPIO->WTSA = (1 << n) & 0xFFFFFFFF) : (GPIO->WTSB = (1 << (n - 32)) & 0xFFFFFFFF)
 #define CLEAR_GPIO(n)     (n < 32) ? (GPIO->WTCA = (1 << n) & 0xFFFFFFFF) : (GPIO->WTCB = (1 << (n - 32)) & 0xFFFFFFFF)
 
 #define SET_GPIOS(mask)   GPIO->WTSB = (uint32_t)((mask) >> 32); GPIO->WTSA = (uint32_t)(mask) ///< set multible GPIOs in a 64-bit mask
 #define CLEAR_GPIOS(mask) GPIO->WTCB = (uint32_t)((mask) >> 32); GPIO->WTCA = (uint32_t)(mask) ///< clear multible GPIOs in a 64-bit mask
+    
+#if APOLLOGPIO_USE_ARDUINO == 1
+    #define HIGH 0x1
+    #define LOW  0x0
+    #define INPUT 0x0
+    #define OUTPUT 0x1
+    #define INPUT_PULLUP 0x2
+    //#define CHANGE 1 not supported
+    #define FALLING 2
+    #define RISING  3
+    #define digitalWrite(pin, val) ApolloGpio_GpioSet(pin,val)
+    #define digitalRead(pin) ApolloGpio_GpioGet(pin)
+    #define detachInterrupt(interruptNum) ApolloGpio_UnRegisterIrq(interruptNum);
+#endif
     
 /*****************************************************************************/
 /* Global type definitions ('typedef')                                        */
@@ -229,6 +316,14 @@ typedef enum en_apollogpio_edgedetect
         typedef uint32_t apollogpio_gpio_pin_t;
     #endif
 #endif
+        
+typedef struct stc_apollogpio_register_mask_pair
+{
+    uint32_t u32Pin;
+    volatile uint32_t* pRegister;
+    uint32_t u32Mask;
+} stc_apollogpio_register_mask_pair_t;
+
 
 /*****************************************************************************/
 /* Global variable declarations ('extern', definition in C source)           */
@@ -255,6 +350,11 @@ void ApolloGpio_UnRegisterIrq(apollogpio_gpio_pin_t pin);
 boolean_t ApolloGpio_GpioGet(apollogpio_gpio_pin_t pin);
 void ApolloGpio_GpioSetHighSwitch(apollogpio_gpio_pin_t pin, boolean_t bOnOff);
 void ApolloGpio_GpioSelectPullup(apollogpio_gpio_pin_t pin, en_apollogpio_pullup_t enPullUp);
+#if APOLLOGPIO_USE_ARDUINO == 1
+void pinMode(uint8_t pin, uint8_t mode);
+void attachInterrupt(uint8_t interruptNum, void (*userFunc)(void), int mode);
+#endif
+
 #endif /* (APOLLOGPIO_ENABLED == 1) */
 
 #ifdef __cplusplus
