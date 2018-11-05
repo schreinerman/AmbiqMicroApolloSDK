@@ -1777,6 +1777,7 @@ en_result_t ApolloIom_I2cRead(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, 
     uint32_t u32ReadLen = 0;
     uint32_t tmp;
     uint32_t len;
+//    int i;
     volatile uint32_t u32Timeout;
 
     if (pu32BytesRead == NULL) pu32BytesRead = &tmp;
@@ -1792,7 +1793,12 @@ en_result_t ApolloIom_I2cRead(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, 
     if (u32Timeout == 0) return ErrorTimeout;
 
     u32NumBytes = (u32NumBytes <= MAX_FIFO_SIZE ? u32NumBytes : MAX_FIFO_SIZE);
-
+//#if !(defined(APOLLO_H) || defined(APOLLO1_H) || defined(APOLLO2_H))     
+//    for(i = 0; i < u32NumBytes; i+=4)
+//    {
+//        pstcHandle->FIFOPUSH = 0xFFFFFFFF;
+//    }
+//#endif
     ApolloIom_I2cCommand(pstcHandle,AM_HAL_IOM_READ,u32BusAddress,u32NumBytes,u32Options);
 
     u32Timeout = 0;
