@@ -48,6 +48,9 @@ so agrees to indemnify Fujitsu against all liability.
 **   - 2018-07-06  V1.6  Manuel Schreiner   Updated documentation, 
 **                                          now part of the FEEU ClickBeetle(TM) SW Framework
 **   - 2018-07-25  V1.7  Manuel Schreiner   Fixed missing break in switch instuction in ApolloIOM_Configure
+**   - 2018-08-09  v1.7d Manuel Schreiner   Added ready check, added polling example
+**                                          ,added CS GPIO functions not using CS triggered by IOM
+**                                          ,added fist support for Apollo3 direct transfer mode
 **
 *****************************************************************************/
 #ifndef __APOLLOIOM_H__
@@ -73,6 +76,8 @@ extern "C"
 ** - ApolloIOM_Configure()        - configure IOM
 ** - ApolloIOM_Enable()           - enable IOM
 ** - ApolloIOM_Disable()          - disable IOM
+** - ApolloIom_CheckReady()       - check IOM is ready
+** - ApolloIom_CheckFinished()    - check IOM had finished operation
 **
 ** SPI Functions:
 ** --------------
@@ -165,7 +170,7 @@ extern "C"
  
 /**
 ******************************************************************************    
-** \page apolloiom_module_config Required configuration in the user code
+** \page apolloiom_module_config Example: SPI 4-wire configuration
 ** \brief Following configuration are required in the user code
 ** @code   
 ** const stc_apolloiom_config_t stcIomConfig = {
@@ -175,15 +180,64 @@ extern "C"
 **    FALSE,               //SPOL setting
 **    0,                   //WriteThreshold
 **    60                   //ReadThreshold
+**    39,                  //SCK pin M4SCK
+**    40,                  //MISO pin M4MISO
+**    44,                  //MOSI pin M4MOSI
 ** };
 **
 ** void MI0283QTTftSpiInit(boolean_t bEnableDisable)
 ** {
 **     if (bEnableDisable)
 **     {
-**         ApolloIOM_Configure(IOMSTR0,&stcIomConfig);
-**         ApolloIOM_Enable(IOMSTR0);
+**         ApolloGpio_GpioSelectFunction(10, 4); //select M4nCE5 function on pin 10
+**         ApolloIOM_Configure(IOMSTR4,&stcIomConfig);
+**         ApolloIOM_Enable(IOMSTR4);
 **     }
+** }
+** @endcode
+**
+******************************************************************************/
+
+/**
+******************************************************************************    
+** \page apolloiom_module_config_three_wire_spi Example: SPI 3-wire configuration
+** \brief Following configuration are required in the user code
+** @code   
+** const stc_apolloiom_config_t stcIomConfig = {
+**    IomInterfaceModeSpi, //use SPI mode
+**    15000000UL,          //frequency
+**    FALSE,               //SPHA setting
+**    FALSE,               //SPOL setting
+**    0,                   //WriteThreshold
+**    60                   //ReadThreshold
+**    39,                  //SCK Pin M4SCK
+**    0xFF,                //MISO Pin not used
+**    44,                  //MOSI Pin M4MOSI
+** };
+**
+** void MI0283QTTftSpiInit(boolean_t bEnableDisable)
+** {
+**     if (bEnableDisable)
+**     {
+**         ApolloGpio_GpioSelectFunction(10, 4); //select M4nCE5 as function 4 on pin 10
+**         ApolloIOM_Configure(IOMSTR4,&stcIomConfig);
+**         ApolloIOM_Enable(IOMSTR4);
+**     }
+** }
+** @endcode
+**
+******************************************************************************/
+
+/**
+******************************************************************************    
+** \page apolloiom_module_example_write Example: SPI write data in the user code
+** \brief Following code is required to write data in the user code
+** @code   
+** void MI0283QTTftSpiWrite(uint32_t* pu8Data, uint32_t u32Len)
+** {
+**     uint32_t u32BytesWritten = 0;
+**     //use IOMSTR4 with M4nCE5
+**     ApolloIom_SpiWrite(IOMSTR4,5,pu8Data,u32Len,&u32BytesWritten,AM_HAL_IOM_RAW);
 ** }
 ** @endcode
 **
@@ -194,12 +248,58 @@ extern "C"
 ** \page apolloiom_module_example_write Required code to write data in the user code
 ** \brief Following code is required to write data in the user code
 ** @code   
-** void MI0283QTTftSpiWrite(uint32_t* pu32Data, uint32_t u32Len)
+** void MI0283QTTftSpiWrite(uint8_t* pu8Data, uint32_t u32Len)
 ** {
 **     uint32_t u32BytesWritten = 0;
-**     ApolloIom_SpiWrite(IOMSTR1,6,(uint32_t*)pu32Data,u32Len,&u32BytesWritten,AM_HAL_IOM_RAW);
+**     //use IOMSTR4 with M4nCE5
+**     ApolloIom_SpiWrite(IOMSTR4,5,pu8data,u32Len,&u32BytesWritten,AM_HAL_IOM_RAW);
 ** }
 ** @endcode
+**
+******************************************************************************/
+
+
+/**
+******************************************************************************    
+** \page apolloiom_module_config_polled_manual_cs Example: SPI polled data transfer with manual CS
+** \brief Following configuration are required in the user code
+** @code   
+** const stc_apolloiom_config_t stcIomConfig = {
+**    IomInterfaceModeSpi, //use SPI mode
+**    15000000UL,          //frequency
+**    FALSE,               //SPHA setting
+**    FALSE,               //SPOL setting
+**    0,                   //WriteThreshold
+**    60                   //ReadThreshold
+**    39,                  //SCK Pin M4SCK
+**    40,                  //MISO Pin M4MISO
+**    44,                  //MOSI Pin M4MOSI
+** };
+**
+** void MI0283QTTftSpiInit(boolean_t bEnableDisable)
+** {
+**     if (bEnableDisable)
+**     {
+**         ApolloGpio_GpioSelectFunction(10, 3); //select GPIO10 as function 3 on pin 10
+**         ApolloGpio_GpioOutputEnable(10,TRUE);
+**         ApolloGpio_GpioSet(10,TRUE);
+**         ApolloIOM_Configure(IOMSTR4,&stcIomConfig);
+**         ApolloIOM_Enable(IOMSTR4);
+**     }
+** }
+**
+** void MI0283QTTftSpiWritePolled(uint8_t* pu8Data, uint32_t u32Len)
+** {
+**     uint32_t u32BytesWritten = 0;
+**     //use IOMSTR4 with GPIO10 as CS
+**     ApolloGpio_GpioSet(10,FALSE); //CS Active low
+**     ApolloIom_SpiWrite(IOMSTR4,5,pu8Data,u32Len,&u32BytesWritten,AM_HAL_IOM_RAW);
+**     while(ApolloIom_CheckFinished(IOMSTR4) != Ok) __NOP();
+**     ApolloGpio_GpioSet(10,TRUE);
+** }
+** @endcode
+**
+**
 **
 ******************************************************************************/
     
@@ -254,6 +354,90 @@ extern "C"
 #define IOMSTR_SWSPI ((IOMSTR0_Type*)(IOMSTR0 + 4)) //create virtual SWSPI IOM interface
 #endif
 
+#define IOM_PIN_NOTUSED  0xFF
+    
+/************************************************************************
+ ** Ambiq Micro Name Change compatibility layer [START]
+ ************************************************************************/
+
+
+#if defined(IOM0_BASE) && !defined(IOMSTR0)
+#define IOMSTR0 IOM0
+#define IOMSTR0_Type IOM0_Type
+#define IOMSTR0_CLKCFG_FSEL_Pos    IOM0_CLKCFG_FSEL_Pos
+#define IOMSTR0_CLKCFG_DIV3_Pos    IOM0_CLKCFG_DIV3_Pos
+#define IOMSTR0_CLKCFG_DIVEN_Pos   IOM0_CLKCFG_DIVEN_Pos
+#define IOMSTR0_CLKCFG_LOWPER_Pos  IOM0_CLKCFG_LOWPER_Pos
+#define IOMSTR0_CLKCFG_TOTPER_Pos  IOM0_CLKCFG_TOTPER_Pos
+#endif
+
+#if defined(IOM1_BASE) && !defined(IOMSTR1)
+#define IOMSTR1 IOM1
+#endif
+
+#if defined(IOM2_BASE) && !defined(IOMSTR2)
+#define IOMSTR2 IOM2
+#endif
+
+#if defined(IOM3_BASE) && !defined(IOMSTR3)
+#define IOMSTR3 IOM3
+#endif
+
+#if defined(IOM4_BASE) && !defined(IOMSTR4)
+#define IOMSTR4 IOM4
+#endif
+
+#if defined(IOM5_BASE) && !defined(IOMSTR5)
+#define IOMSTR5 IOM5
+#endif
+
+#if defined(IOM6_BASE) && !defined(IOMSTR6)
+#define IOMSTR6 IOM6
+#endif
+
+#if defined(IOM7_BASE) && !defined(IOMSTR7)
+#define IOMSTR7 IOM7
+#endif
+
+#if defined(IOMSTR0_BASE) && !defined(IOM0)
+#define IOM0 IOMSTR0 
+#define IOM0_Type IOMSTR0_Type 
+#endif
+
+#if defined(IOMSTR1_BASE) && !defined(IOM1)
+#define IOM1 IOMSTR1 
+#endif
+
+#if defined(IOMSTR2_BASE) && !defined(IOM2)
+#define IOM2 IOMSTR2 
+#endif
+
+#if defined(IOMSTR3_BASE) && !defined(IOM3)
+#define IOM3 IOMSTR3
+#endif
+
+#if defined(IOMSTR4_BASE) && !defined(IOM4)
+#define IOM4 IOMSTR4 
+#endif
+
+#if defined(IOMSTR5_BASE) && !defined(IOM5)
+#define IOM5 IOMSTR5 
+#endif
+
+#if defined(IOMSTR6_BASE) && !defined(IOM6)
+#define IOM6 IOMSTR6 
+#endif
+
+#if defined(IOMSTR7_BASE) && !defined(IOM7)
+#define IOM7 IOMSTR7 
+#endif
+
+
+/************************************************************************
+ ** Ambiq Micro Name Change compatibility layer [END]
+ ************************************************************************/
+
+
 #define APOLLOIOM_IRQ_ARB                   (1 << IOMSTR0_INTEN_ARB_Pos)    ///< This is the arbitration loss interrupt.
 #define APOLLOIOM_IRQ_STOP                  (1 << IOMSTR0_INTEN_STOP_Pos)   ///< This is the STOP command interrupt.
 #define APOLLOIOM_IRQ_START                 (1 << IOMSTR0_INTEN_START_Pos)  ///< This is the START command interrupt.
@@ -284,7 +468,7 @@ extern "C"
 #else
   #warning Not supported compiler type
 #endif
-    
+   
 typedef enum en_apolloiom_interface_mode
 {
     IomInterfaceModeI2C = 0,
@@ -330,7 +514,10 @@ typedef struct stc_apolloiom_gpios
         uint8_t u8MisoPin;
         uint8_t u8SdaPin;
     };
-    uint8_t u8MosiPin;
+    union {
+        uint8_t u8MosiPin;
+        uint8_t u8Wir3Pin;
+    };
 } stc_apolloiom_gpios_t;
 
 typedef struct stc_apolloiom_gpio_func
@@ -386,7 +573,8 @@ typedef struct stc_apolloiom_config
     boolean_t bFullDuplex;
     
     stc_apolloiom_gpios_t stcGpios;
-
+    
+    boolean_t bSPI3Wire;
 } stc_apolloiom_config_t;
 
 
@@ -426,6 +614,7 @@ typedef struct stc_apolloiom_intern_data
     stc_apolloiom_nb_buffer_t stcBuffer;
     en_apolloiom_interface_mode_t enInterfaceMode;
     stc_apolloiom_gpios_t stcGpios;
+    boolean_t bSPI3Wire;
     pfn_apollospi_rxtx_t pfnCallback;
 } stc_apolloiom_intern_data_t;
 
@@ -461,8 +650,11 @@ typedef struct stc_apolloiom_instance_data
 
 en_result_t ApolloIOM_Enable(IOMSTR0_Type* pstcHandle);
 en_result_t ApolloIOM_Disable(IOMSTR0_Type* pstcHandle);
+en_result_t ApolloIom_CheckReady(IOMSTR0_Type* pstcHandle);
+en_result_t ApolloIom_CheckFinished(IOMSTR0_Type* pstcHandle);
 en_result_t ApolloIOM_Configure(IOMSTR0_Type* pstcHandle, const stc_apolloiom_config_t* pstcConfig);
 en_result_t ApolloIom_SpiCommand(IOMSTR0_Type* pstcHandle, uint32_t u32Operation, uint32_t u32ChipSelect, uint32_t u32NumBytes, uint32_t u32Options);
+en_result_t ApolloIom_SpiSetCsPolled(IOMSTR0_Type* pstcHandle,uint32_t u32GpioPin, boolean_t bHighLow);
 en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesWritten, uint32_t u32Options,pfn_apollospi_rxtx_t pfnCallback);
 en_result_t ApolloIom_SpiWritePolled(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesWritten, uint32_t u32Options);
 en_result_t ApolloIom_SpiRead(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesRead, uint32_t u32Options,pfn_apollospi_rxtx_t pfnCallback);
