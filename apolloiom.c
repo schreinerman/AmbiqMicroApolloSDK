@@ -511,7 +511,7 @@ en_result_t ApolloIOM_Enable(IOMSTR0_Type* pstcHandle)
     }
     pstcHandle->CFG_b.IFCEN = 1;
 #else
-    if (pstcHandle->SUBMODCTRL_b.SMOD0EN == 1)
+    if ((pstcHandle->SUBMODCTRL_b.SMOD0EN == 1) || (pstcHandle->SUBMODCTRL_b.SMOD1EN == 1))
     {
         ApolloIOM_Disable(pstcHandle);
     }
@@ -522,7 +522,7 @@ en_result_t ApolloIOM_Enable(IOMSTR0_Type* pstcHandle)
 
     if (pstcData->enInterfaceMode == IomInterfaceModeSpi)
     {
-        if (!(pstcData->stcGpios.u8MisoPin == pstcData->stcGpios.u8MosiPin == pstcData->stcGpios.u8SckPin))
+        if (!((pstcData->stcGpios.u8MisoPin == pstcData->stcGpios.u8MosiPin) && (pstcData->stcGpios.u8MisoPin == pstcData->stcGpios.u8SckPin)))
         {
             if (pstcData->stcGpios.u8SckPin < 50)
             {
@@ -588,20 +588,28 @@ en_result_t ApolloIOM_Disable(IOMSTR0_Type* pstcHandle)
 
     #endif
 
-    //Poll for IOM had completed the operation
-    SystemCoreClockUpdate();
-    u32Timeout = SystemCoreClock/5;
-    while(u32Timeout > 0)
+#if defined(APOLLO_H) || defined(APOLLO1_H) || defined(APOLLO2_H)
+    if (pstcHandle->CFG_b.IFCEN != 0)
+#else
+    if ((pstcHandle->SUBMODCTRL_b.SMOD0EN != 0) || (pstcHandle->SUBMODCTRL_b.SMOD1EN != 0))
+#endif
     {
-        u32Timeout--;
-        if (pstcHandle->STATUS_b.IDLEST == 1) break;
+        //Poll for IOM had completed the operation
+        SystemCoreClockUpdate();
+        u32Timeout = SystemCoreClock/5;
+        while(u32Timeout > 0)
+        {
+            u32Timeout--;
+            if (pstcHandle->STATUS_b.IDLEST == 1) break;
+        }
+        if (u32Timeout == 0) return ErrorTimeout;
     }
-    if (u32Timeout == 0) return ErrorTimeout;
 
 #if defined(APOLLO_H) || defined(APOLLO1_H) || defined(APOLLO2_H)
     pstcHandle->CFG_b.IFCEN = 0;
 #else
-    pstcHandle->SUBMODCTRL_b.SMOD0EN = 0;
+    pstcHandle->SUBMODCTRL &= ~(1 << IOM0_SUBMODCTRL_SMOD0EN_Pos);
+    pstcHandle->SUBMODCTRL &= ~(1 << IOM0_SUBMODCTRL_SMOD1EN_Pos);
 #endif
 
     
@@ -822,7 +830,7 @@ en_result_t ApolloIOM_Configure(IOMSTR0_Type* pstcHandle, const stc_apolloiom_co
     //
     // pre-check for valid GPIO configuration
     //
-    if (pstcData->stcGpios.u8MisoPin == pstcData->stcGpios.u8SckPin == pstcData->stcGpios.u8MosiPin)
+    if ((pstcData->stcGpios.u8MisoPin == pstcData->stcGpios.u8MosiPin) && (pstcData->stcGpios.u8MisoPin == pstcData->stcGpios.u8SckPin))
     {
         //
         // no valid GPIO configuration found
@@ -839,6 +847,7 @@ en_result_t ApolloIOM_Configure(IOMSTR0_Type* pstcHandle, const stc_apolloiom_co
                     {
                         ApolloGpio_GpioSelectFunction(pstcData->stcGpios.u8Wir3Pin,stcIomGpios[i].u8FunctionI2C); //WIR3 is at the same function as I2C
                         ApolloGpio_GpioSelectFunction(pstcData->stcGpios.u8SckPin,stcIomGpios[i].u8FunctionSPI);
+                        enRes = Ok;
                     } else
                     {
                         ApolloGpio_GpioSelectFunction(pstcData->stcGpios.u8MosiPin,stcIomGpios[i].u8FunctionSPI);
@@ -859,6 +868,7 @@ en_result_t ApolloIOM_Configure(IOMSTR0_Type* pstcHandle, const stc_apolloiom_co
 
                      ApolloGpio_GpioSelectFunction(pstcData->stcGpios.u8SdaPin,stcIomGpios[i].u8FunctionI2C);
                      ApolloGpio_GpioSelectFunction(pstcData->stcGpios.u8SclPin,stcIomGpios[i].u8FunctionI2C);
+                     enRes = Ok;
                      break;
                 }
             }
@@ -952,36 +962,44 @@ en_result_t ApolloIOM_Configure(IOMSTR0_Type* pstcHandle, const stc_apolloiom_co
         {
         #if defined(IOMSTR0) && ((IOMSTR0_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
               case (int)IOMSTR0:
+                PWRCTRL->DEVPWREN &= ~(1 << PWRCTRL_DEVPWREN_IOM0_Pos);
                 PWRCTRL->DEVPWREN |= (1 << PWRCTRL_DEVPWREN_IOM0_Pos);
                 break;
         #endif
         #if defined(IOMSTR1) && ((IOMSTR1_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
               case (int)IOMSTR1:
-                PWRCTRL->DEVPWREN |= (1 << PWRCTRL_DEVPWREN_IOM2_Pos);
+                PWRCTRL->DEVPWREN &= ~(1 << PWRCTRL_DEVPWREN_IOM1_Pos);
+                PWRCTRL->DEVPWREN |= (1 << PWRCTRL_DEVPWREN_IOM1_Pos);
                 break;
         #endif
         #if defined(IOMSTR2) && ((IOMSTR2_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
               case (int)IOMSTR2:
+                PWRCTRL->DEVPWREN &= ~(1 << PWRCTRL_DEVPWREN_IOM2_Pos);
                 PWRCTRL->DEVPWREN |= (1 << PWRCTRL_DEVPWREN_IOM2_Pos);
                 break;
         #endif
         #if defined(IOMSTR3) && ((IOMSTR3_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
               case (int)IOMSTR3:
+              PWRCTRL->DEVPWREN &= ~(1 << PWRCTRL_DEVPWREN_IOM3_Pos);
                 PWRCTRL->DEVPWREN |= (1 << PWRCTRL_DEVPWREN_IOM3_Pos);
                 break;
         #endif
         #if defined(IOMSTR4) && ((IOMSTR4_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
               case (int)IOMSTR4:
+              PWRCTRL->DEVPWREN &= ~(1 << PWRCTRL_DEVPWREN_IOM4_Pos);
                 PWRCTRL->DEVPWREN |= (1 << PWRCTRL_DEVPWREN_IOM4_Pos);
                 break;
         #endif
         #if defined(IOMSTR5) && ((IOMSTR5_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
               case (int)IOMSTR5:
+                PWRCTRL->DEVPWREN &= ~(1 << PWRCTRL_DEVPWREN_IOM5_Pos);
                 PWRCTRL->DEVPWREN |= (1 << PWRCTRL_DEVPWREN_IOM5_Pos);
                 break;
         #endif
         }       
     #endif
+
+    ApolloIOM_Disable(pstcHandle);
 
 #if defined(APOLLO_H) || defined(APOLLO1_H) || defined(APOLLO2_H)
     if (pstcConfig->enInterfaceMode == IomInterfaceModeSpi)
@@ -1024,26 +1042,79 @@ en_result_t ApolloIOM_Configure(IOMSTR0_Type* pstcHandle, const stc_apolloiom_co
         enRes = Ok;
     }
 #else
-    enRes = Error;
-    
-    if (ApolloIOM_GetClockCfg(pstcConfig->u32ClockFrequency,0,&u32Config,pstcConfig->bSPHA) == Ok)
-    {
-        u32Config |= (1 << IOM0_CLKCFG_IOCLKEN_Pos);
-        pstcHandle->CLKCFG = u32Config;
-        enRes = Ok;
-    }
-    
     if (pstcConfig->enInterfaceMode == IomInterfaceModeSpi)
     {
         pstcHandle->SUBMODCTRL_b.SMOD0TYPE = IOM0_SUBMODCTRL_SMOD1TYPE_MSPI;
-        pstcHandle->SUBMODCTRL_b.SMOD1TYPE = IOM0_SUBMODCTRL_SMOD1TYPE_MSPI;
+        pstcHandle->SUBMODCTRL_b.SMOD1TYPE = IOM0_SUBMODCTRL_SMOD0TYPE_I2C_MASTER;
     } else
     {
         pstcHandle->SUBMODCTRL_b.SMOD0TYPE = IOM0_SUBMODCTRL_SMOD0TYPE_I2C_MASTER;
-        pstcHandle->SUBMODCTRL_b.SMOD1TYPE = IOM0_SUBMODCTRL_SMOD1TYPE_I2C_MASTER;
+        pstcHandle->SUBMODCTRL_b.SMOD1TYPE = IOM0_SUBMODCTRL_SMOD1TYPE_MSPI;
     }
 
     pstcData->enInterfaceMode = pstcConfig->enInterfaceMode;
+
+    enRes = Error;
+      
+
+    if (pstcConfig->enInterfaceMode == IomInterfaceModeSpi)
+    {
+      if (ApolloIOM_GetClockCfg(pstcConfig->u32ClockFrequency,0,&u32Config,pstcConfig->bSPHA) == Ok)
+      {
+          u32Config |= (1 << IOM0_CLKCFG_IOCLKEN_Pos);
+          pstcHandle->CLKCFG = u32Config;
+          pstcHandle->MSPICFG_b.MSPIRST = 1;
+          pstcHandle->FIFOCTRL_b.FIFORSTN = 0;    
+          pstcHandle->FIFOCTRL_b.FIFORSTN = 1;
+          pstcHandle->MSPICFG_b.MSPIRST = 0;
+          enRes = Ok;
+      }
+    } else
+    {
+      if (pstcConfig->u32ClockFrequency <= 100000UL)
+      {
+          u32Config = 2 << IOM0_CLKCFG_FSEL_Pos;        //should be 3
+          u32Config |= 1 << IOM0_CLKCFG_DIVEN_Pos;      //should be 1
+          u32Config |= 0x77 << IOM0_CLKCFG_TOTPER_Pos;    //should be 60
+          u32Config |= 0x3B << IOM0_CLKCFG_LOWPER_Pos;    //should be 39
+          u32Config |= (1 << IOM0_CLKCFG_IOCLKEN_Pos);  //should be 1
+          pstcHandle->CLKCFG = u32Config;               
+          pstcHandle->MI2CCFG_b.SMPCNT = 3;             //should be 3
+          pstcHandle->MI2CCFG_b.SDAENDLY = 15;          //should be 15
+          pstcHandle->MI2CCFG_b.SCLENDLY = 0;           //should be 0
+          pstcHandle->MI2CCFG_b.MI2CRST = 1;            //should be 0
+          enRes = Ok;
+      } else if (pstcConfig->u32ClockFrequency <= 400000UL)
+      {
+          u32Config = 2 << IOM0_CLKCFG_FSEL_Pos;        //should be 2
+          u32Config |= 1 << IOM0_CLKCFG_DIVEN_Pos;       //should be 1
+          u32Config |= 0x1D << IOM0_CLKCFG_TOTPER_Pos;    //should be 31
+          u32Config |= 0x0E << IOM0_CLKCFG_LOWPER_Pos;    //should be 19
+          u32Config |= (1 << IOM0_CLKCFG_IOCLKEN_Pos);  //should be 1
+          pstcHandle->CLKCFG = u32Config;
+          pstcHandle->MI2CCFG_b.SMPCNT = 15;            //should be 15
+          pstcHandle->MI2CCFG_b.SDAENDLY = 15;          //should be 15
+          pstcHandle->MI2CCFG_b.SCLENDLY = 2;           //should be 2
+          pstcHandle->MI2CCFG_b.MI2CRST = 1;            //should be 0
+          enRes = Ok;
+         
+      } else
+      {
+          u32Config = 3 << IOM0_CLKCFG_FSEL_Pos;
+          u32Config |= 1 << IOM0_CLKCFG_DIVEN_Pos;
+          u32Config |= 6 << IOM0_CLKCFG_TOTPER_Pos;
+          u32Config |= 3 << IOM0_CLKCFG_LOWPER_Pos;
+          u32Config |= (1 << IOM0_CLKCFG_IOCLKEN_Pos);
+          pstcHandle->CLKCFG = u32Config;
+          pstcHandle->MI2CCFG_b.SMPCNT = 0x21;             //should be 1
+          pstcHandle->MI2CCFG_b.SDAENDLY = 3;
+          pstcHandle->MI2CCFG_b.SCLENDLY = 0;
+          pstcHandle->MI2CCFG_b.MI2CRST = 1;            //should be 0
+          enRes = Ok;
+      }
+    }
+    
+
     
     
     pstcHandle->MSPICFG_b.SPHA = pstcConfig->bSPHA;
@@ -1051,8 +1122,8 @@ en_result_t ApolloIOM_Configure(IOMSTR0_Type* pstcHandle, const stc_apolloiom_co
     pstcHandle->MSPICFG_b.FULLDUP = pstcConfig->bFullDuplex;
     
     pstcHandle->FIFOTHR = (pstcConfig->u8WriteThreshold << IOM0_FIFOTHR_FIFOWTHR_Pos) | (pstcConfig->u8ReadThreshold << IOM0_FIFOTHR_FIFORTHR_Pos);
-        
-
+    pstcHandle->FIFOCTRL_b.FIFORSTN = 0;    
+    pstcHandle->FIFOCTRL_b.FIFORSTN = 1;
 
 #endif
     
@@ -1196,6 +1267,8 @@ en_result_t ApolloIom_I2cCommand(IOMSTR0_Type* pstcHandle, uint32_t u32Operation
     //
     pstcHandle->CMD = u32Command;
 #else
+    pstcHandle->DEVCFG = 0xAA; //u32BusAddress << 1;
+    pstcHandle->CMDRPT = 0;
     if ((u32Operation & AM_HAL_IOM_READ) != 0)
     {
         u32Command |= (IOM0_CMD_CMD_READ << IOM0_CMD_CMD_Pos) & IOM0_CMD_CMD_Msk; 
@@ -1210,7 +1283,7 @@ en_result_t ApolloIom_I2cCommand(IOMSTR0_Type* pstcHandle, uint32_t u32Operation
          u32Command |= ((u32Options & 0x0000FF00) << (IOM0_CMD_OFFSETLO_Pos - 8)) & IOM0_CMD_OFFSETLO_Msk; 
     }
     
-    pstcHandle->DEVCFG = u32BusAddress;
+   
     
     if ((AM_HAL_IOM_NO_STOP & u32Options) != 0)
     {
@@ -1221,10 +1294,10 @@ en_result_t ApolloIom_I2cCommand(IOMSTR0_Type* pstcHandle, uint32_t u32Operation
     
     if ((u32Options & AM_HAL_IOM_LSB_FIRST) != 0)
     {
-        pstcHandle->MSPICFG_b.SPILSB = 1;
+        pstcHandle->MI2CCFG_b.I2CLSB = 1;
     } else
     {
-        pstcHandle->MSPICFG_b.SPILSB = 0;
+        pstcHandle->MI2CCFG_b.I2CLSB = 0;
     }
     
     pstcHandle->CMD = u32Command;
@@ -1723,14 +1796,14 @@ en_result_t ApolloIom_I2cRead(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, 
     ApolloIom_I2cCommand(pstcHandle,AM_HAL_IOM_READ,u32BusAddress,u32NumBytes,u32Options);
 
     u32Timeout = 0;
-    while(pstcHandle->STATUS_b.IDLEST == 0)
+    while((pstcHandle->STATUS_b.IDLEST == 0) || (pstcHandle->INTSTAT_b.CMDCMP == 1))
     {
         if (u32NumBytes == 0) return Ok;
         u32ReadLen = 0;
 #if defined(APOLLO_H) || defined(APOLLO1_H) || defined(APOLLO2_H)
         len = pstcHandle->FIFOPTR_b.FIFOSIZ;
 #else
-        len = pstcHandle->FIFOPTR_b.FIFO0SIZ;
+        len = pstcHandle->FIFOPTR_b.FIFO1SIZ;
 #endif
         if (len == u32NumBytes) //Check to see how much data is in the IOM fifo.
         {
@@ -1739,6 +1812,9 @@ en_result_t ApolloIom_I2cRead(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, 
         {
             u32ReadLen = len / 4;
             u32ReadLen = u32ReadLen * 4;
+        } else if (u32ReadLen > u32NumBytes)
+        {
+            u32ReadLen = u32NumBytes;
         }
         len = FifoToData(pstcHandle,pu8Data,u32ReadLen);
         if (len > u32NumBytes)
@@ -1991,15 +2067,16 @@ en_result_t ApolloIom_SpiRead(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, 
 
     if (pfnCallback == NULL)
     {
-        while((pstcHandle->STATUS_b.IDLEST == 0) || (pstcHandle->STATUS_b.CMDACT == 1))
+        
+        while((pstcHandle->STATUS_b.IDLEST == 0) || (pstcHandle->STATUS_b.CMDACT == 1) || (len > 0))
         {
             if (u32NumBytes == 0) return Ok;
             u32ReadLen = 0;
-#if defined(APOLLO_H) || defined(APOLLO1_H) || defined(APOLLO2_H)
-        len = pstcHandle->FIFOPTR_b.FIFOSIZ;
-#else
-        len = pstcHandle->FIFOPTR_b.FIFO0SIZ;
-#endif
+            #if defined(APOLLO_H) || defined(APOLLO1_H) || defined(APOLLO2_H)
+                len = pstcHandle->FIFOPTR_b.FIFOSIZ;
+            #else
+                len = pstcHandle->FIFOPTR_b.FIFO0SIZ;
+            #endif
             if (len == u32NumBytes) //Check to see how much data is in the IOM fifo.
             {
                 u32ReadLen = u32NumBytes;
