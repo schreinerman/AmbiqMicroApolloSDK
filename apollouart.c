@@ -53,7 +53,7 @@
  **   - 2018-03-15  V1.5  Manuel Schreiner   Fixed interrupt handling
  **   - 2018-04-24  V1.6  Manuel Schreiner   Added configuration by pin (for Arduino or MBED based SDKs)
  **                                          Added extended configuration options
- **   - 2018-07-06  V1.7  Manuel Schreiner   Updated documentation, 
+ **   - 2018-07-06  V1.7  Manuel Schreiner   Updated documentation,
  **                                          now part of the FEEU ClickBeetle(TM) SW Framework
  **   - 2018-07-24  V1.8  Manuel Schreiner   Updated pin-configuration and status-infomration
  **
@@ -66,7 +66,7 @@
 #include "stdio.h"
 #include "string.h"
 #include "apolloctimer.h"
-
+#include "mcu.h"
 #if (APOLLOUART_ENABLED == 1) || (APOLLOUART0_ENABLED == 1) || (APOLLOUART1_ENABLED == 1)
 /*****************************************************************************/
 /* Local pre-processor symbols/macros ('#define')                            */
@@ -115,7 +115,7 @@ static const stc_apollouart_gpios_t stcUartGpios[] =
     {UART,39,1,ApolloUartGpioTypeTx},
     {UART,40,1,ApolloUartGpioTypeRx},
 #endif
-    
+
 #if defined(APOLLO2_H)
     #if (defined(UART) || defined(UART0)) && ((APOLLOUART0_ENABLED == 1) || (APOLLOUART_ENABLED == 1))
         {UART0,1,2,ApolloUartGpioTypeTx},
@@ -145,7 +145,7 @@ static const stc_apollouart_gpios_t stcUartGpios[] =
         {UART0,40,0,ApolloUartGpioTypeRx},
         {UART0,41,7,ApolloUartGpioTypeRts},
     #endif
-    #if (defined(UART1)) && (APOLLOUART1_ENABLED == 1)   
+    #if (defined(UART1)) && (APOLLOUART1_ENABLED == 1)
         {UART1,8,6,ApolloUartGpioTypeTx},
         {UART1,9,6,ApolloUartGpioTypeRx},
         {UART1,10,5,ApolloUartGpioTypeRts},
@@ -168,8 +168,93 @@ static const stc_apollouart_gpios_t stcUartGpios[] =
         {UART1,45,0,ApolloUartGpioTypeCts},
     #endif
 #endif
+#if defined(APOLLO3_H)
+    #if (defined(UART) || defined(UART0)) && ((APOLLOUART0_ENABLED == 1) || (APOLLOUART_ENABLED == 1))
+        {UART0,1,2,ApolloUartGpioTypeTx},
+        {UART0,2,2,ApolloUartGpioTypeRx},
+        {UART0,3,0,ApolloUartGpioTypeRts},
+        {UART0,4,0,ApolloUartGpioTypeCts},
+        {UART0,5,2,ApolloUartGpioTypeRts},
+        {UART0,6,2,ApolloUartGpioTypeCts},
+        {UART0,7,5,ApolloUartGpioTypeTx},
+        {UART0,11,6,ApolloUartGpioTypeRx},
+        {UART0,12,6,ApolloUartGpioTypeCts},
+        {UART0,13,6,ApolloUartGpioTypeRts},
+        {UART0,16,6,ApolloUartGpioTypeTx},
+        {UART0,17,6,ApolloUartGpioTypeRx},
+        {UART0,18,6,ApolloUartGpioTypeRts},
+        {UART0,20,4,ApolloUartGpioTypeTx},
+        {UART0,21,4,ApolloUartGpioTypeRx},
+        {UART0,22,0,ApolloUartGpioTypeTx},
+        {UART0,23,0,ApolloUartGpioTypeRx},
+        {UART0,24,4,ApolloUartGpioTypeCts},
+        {UART0,26,6,ApolloUartGpioTypeTx},
+        {UART0,27,0,ApolloUartGpioTypeRx},
+        {UART0,28,6,ApolloUartGpioTypeTx},
+        {UART0,29,6,ApolloUartGpioTypeRx},
+        {UART0,29,4,ApolloUartGpioTypeCts},
+        {UART0,30,4,ApolloUartGpioTypeTx},
+        {UART0,31,4,ApolloUartGpioTypeRx},
+        {UART0,33,3,ApolloUartGpioTypeCts},
+        {UART0,34,5,ApolloUartGpioTypeRts},
+        {UART0,34,6,ApolloUartGpioTypeRx},
+        {UART0,35,6,ApolloUartGpioTypeRts},
+        {UART0,36,6,ApolloUartGpioTypeCts},
+        {UART0,37,2,ApolloUartGpioTypeRts},
+        {UART0,38,2,ApolloUartGpioTypeCts},
+        {UART0,39,0,ApolloUartGpioTypeTx},
+        {UART0,40,0,ApolloUartGpioTypeRx},
+        {UART0,41,7,ApolloUartGpioTypeRts},
+        {UART0,41,6,ApolloUartGpioTypeRx},
+        {UART0,44,6,ApolloUartGpioTypeTx},
+        {UART0,45,6,ApolloUartGpioTypeRx},
+        {UART0,48,0,ApolloUartGpioTypeTx},
+        {UART0,49,0,ApolloUartGpioTypeRx},
+    #endif
+    #if (defined(UART1)) && (APOLLOUART1_ENABLED == 1)
+        {UART1,2,0,ApolloUartGpioTypeRx},
+        {UART1,4,5,ApolloUartGpioTypeRx},
+        {UART1,8,6,ApolloUartGpioTypeTx},
+        {UART1,9,6,ApolloUartGpioTypeRx},
+        {UART1,10,5,ApolloUartGpioTypeRts},
+        {UART1,10,0,ApolloUartGpioTypeTx},
+        {UART1,11,5,ApolloUartGpioTypeCts},
+        {UART1,12,7,ApolloUartGpioTypeTx},
+        {UART1,13,7,ApolloUartGpioTypeRx},
+        {UART1,14,2,ApolloUartGpioTypeTx},
+        {UART1,15,2,ApolloUartGpioTypeRx},
+        {UART1,16,7,ApolloUartGpioTypeRts},
+        {UART1,17,7,ApolloUartGpioTypeCts},
+        {UART1,18,6,ApolloUartGpioTypeTx},
+        {UART1,19,6,ApolloUartGpioTypeRx},
+        {UART1,20,5,ApolloUartGpioTypeTx},
+        {UART1,21,5,ApolloUartGpioTypeRx},
+        {UART1,24,0,ApolloUartGpioTypeTx},
+        {UART1,25,0,ApolloUartGpioTypeRx},
+        {UART1,26,7,ApolloUartGpioTypeCts},
+        {UART1,29,5,ApolloUartGpioTypeCts},
+        {UART1,30,5,ApolloUartGpioTypeRts},
+        {UART1,31,7,ApolloUartGpioTypeRts},
+        {UART1,32,7,ApolloUartGpioTypeCts},
+        {UART1,34,2,ApolloUartGpioTypeRts},
+        {UART1,35,2,ApolloUartGpioTypeTx},
+        {UART1,36,2,ApolloUartGpioTypeRx},
+        {UART1,36,5,ApolloUartGpioTypeCts},
+        {UART1,37,5,ApolloUartGpioTypeTx},
+        {UART1,38,6,ApolloUartGpioTypeRx},
+        {UART1,39,2,ApolloUartGpioTypeTx},
+        {UART1,40,2,ApolloUartGpioTypeRx},
+        {UART1,41,5,ApolloUartGpioTypeRts},
+        {UART1,42,0,ApolloUartGpioTypeRx},
+        {UART1,43,0,ApolloUartGpioTypeTx},
+        {UART1,44,0,ApolloUartGpioTypeRts},
+        {UART1,45,0,ApolloUartGpioTypeCts},
+        {UART1,46,6,ApolloUartGpioTypeRx},
+        {UART1,47,6,ApolloUartGpioTypeTx},
+    #endif
+#endif
 };
-    
+
 /*****************************************************************************
  *   CCCCCC   M         M     SSSSSS    I   SSSSSS
  *  C         M M     M M    S          I  S
@@ -1189,10 +1274,10 @@ boolean_t ApolloUart_HasChar(UART_Type* pstcUart)
 void ApolloUart_Init(UART_Type* pstcUart,uint32_t u32Baudrate)
 {
     stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
-    
+
     pstcHandle->bRxEnabled = TRUE;
     pstcHandle->bTxEnabled = TRUE;
-    
+
     //
     // Enable UART clock in CLKGEN
     //
@@ -1211,6 +1296,17 @@ void ApolloUart_Init(UART_Type* pstcUart,uint32_t u32Baudrate)
         PWRCTRL->DEVICEEN |= (1 << PWRCTRL_DEVICEEN_UART1_Pos);
     }
 #endif
+#if defined(APOLLO3_H)
+    if (pstcUart == UART0)
+    {
+        PWRCTRL->DEVPWREN |= (1 << PWRCTRL_DEVPWREN_UART0_Pos);
+    }
+    if (pstcUart == UART1)
+    {
+        PWRCTRL->DEVPWREN |= (1 << PWRCTRL_DEVPWREN_UART1_Pos);
+    }
+#endif
+
     //
     // Enable clock / select clock...
     //
@@ -1274,7 +1370,7 @@ en_result_t ApolloUart_InitByPin(uint8_t u8RxPin,uint8_t u8TxPin,uint32_t u32Bau
     boolean_t bTxDone = FALSE;
     for(i = 0; i < UARTGPIOS_COUNT;i++)
     {
-        if ((pstcUart == NULL) || (stcUartGpios[i].pstcHandle == pstcUart)) 
+        if ((pstcUart == NULL) || (stcUartGpios[i].pstcHandle == pstcUart))
         {
             if ((stcUartGpios[i].u8Gpio == u8RxPin) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeRx))
             {
@@ -1317,11 +1413,11 @@ en_result_t ApolloUart_InitByPin(uint8_t u8RxPin,uint8_t u8TxPin,uint32_t u32Bau
 void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcConfig)
 {
     stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
-    
+
     pstcHandle->u32Baudrate = pstcConfig->u32Baudrate;
     pstcHandle->bRxEnabled = pstcConfig->bEnableRx;
     pstcHandle->bTxEnabled = pstcConfig->bEnableTx;
-    
+
     if (pstcConfig->bEnableRts)
     {
         pstcHandle->stcGpios.i8RtsPin = pstcConfig->stcGpios.u8RtsPin;
@@ -1329,7 +1425,7 @@ void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcCo
     {
          pstcHandle->stcGpios.i8RtsPin = -1;
     }
-    
+
     if (pstcConfig->bEnableCts)
     {
         pstcHandle->stcGpios.i8CtsPin = pstcConfig->stcGpios.u8CtsPin;
@@ -1337,7 +1433,7 @@ void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcCo
     {
         pstcHandle->stcGpios.i8CtsPin = -1;
     }
-    
+
     if (pstcConfig->bEnableRx)
     {
         pstcHandle->stcGpios.i8RxPin = pstcConfig->stcGpios.u8RxPin;
@@ -1345,7 +1441,7 @@ void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcCo
     {
         pstcHandle->stcGpios.i8RxPin = -1;
     }
-    
+
     if (pstcConfig->bEnableTx)
     {
         pstcHandle->stcGpios.i8TxPin = pstcConfig->stcGpios.u8TxPin;
@@ -1353,7 +1449,7 @@ void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcCo
     {
         pstcHandle->stcGpios.i8TxPin = -1;
     }
-    
+
     //
     // Enable UART clock in CLKGEN
     //
@@ -1370,6 +1466,20 @@ void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcCo
     {
         CLKGEN->UARTEN_b.UART1EN = 1;        //enable UART clocking
         PWRCTRL->DEVICEEN |= (1 << PWRCTRL_DEVICEEN_UART1_Pos);
+    }
+#endif
+#if defined(APOLLO3_H)
+    if (pstcUart == UART0)
+    {
+        PWRCTRL->DEVPWREN |= (1 << PWRCTRL_DEVPWREN_UART0_Pos);
+        //missing documentation, temp fix
+        __NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP(); 
+    }
+    if (pstcUart == UART1)
+    {
+        PWRCTRL->DEVPWREN |= (1 << PWRCTRL_DEVPWREN_UART1_Pos);
+        //missing documentation, temp fix
+        __NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();__NOP();
     }
 #endif
     //
@@ -1400,7 +1510,7 @@ void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcCo
 #endif
     // initialize line coding...
     pstcUart->LCRH = 0;
-    
+
     switch(pstcConfig->enDataLen)
     {
       case ApolloUartWlen5Bit:
@@ -1416,7 +1526,7 @@ void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcCo
         pstcUart->LCRH_b.WLEN = 3;
         break;
     }
-    
+
     if (pstcConfig->enStopBit == ApolloUartStop2)
     {
         pstcUart->LCRH_b.STP2 = 1;                //2 stop bit
@@ -1425,7 +1535,7 @@ void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcCo
     {
         pstcUart->LCRH_b.STP2 = 0;                //1 stop bit
     }
-    
+
     switch(pstcConfig->enParity)
     {
       case ApolloUartParityNone:
@@ -1438,17 +1548,17 @@ void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcCo
         pstcUart->LCRH_b.EPS = 1;                 //even parity
         break;
     }
-    
+
     pstcUart->LCRH_b.BRK = pstcConfig->bEnableBreak;
-    
+
     pstcUart->CR_b.LBE = pstcConfig->bEnableLoopback;
 
     pstcUart->CR_b.RTSEN = pstcConfig->bEnableRts;
-    
+
     pstcUart->CR_b.CTSEN = pstcConfig->bEnableCts;
-    
+
     ApolloUart_InitGpios(pstcUart);
-    
+
     //
     // Enable UART after config...
     //
@@ -1467,7 +1577,7 @@ void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcCo
 stc_apollouart_status_t ApolloUart_GetStatus(UART_Type* pstcUart)
 {
     stc_apollouart_status_t stcStat;
-    memset(&stcStat,0,sizeof(stcStat));
+    *((uint32_t*)&stcStat) = 0;
     stcStat.bErrorOverflow =  pstcUart->RSR_b.OESTAT;
     stcStat.bErrorBreak =  pstcUart->RSR_b.BESTAT;
     stcStat.bErrorParity = pstcUart->RSR_b.PESTAT;
@@ -1529,14 +1639,14 @@ void ApolloUart_InitGpios(UART_Type* pstcUart)
 {
     uint32_t i;
     stc_apollouart_intern_data_t* pstcInternHandle = GetInternDataPtr(pstcUart);
-    
+
     for(i = 0; i < UARTGPIOS_COUNT;i++)
     {
         if (stcUartGpios[i].pstcHandle == pstcUart)
         {
             if ((pstcInternHandle->stcGpios.i8CtsPin != -1) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeCts) && (stcUartGpios[i].u8Gpio == pstcInternHandle->stcGpios.i8CtsPin))
             {
-                ApolloGpio_GpioSelectFunction(stcUartGpios[i].u8Gpio,stcUartGpios[i].u8Function); 
+                ApolloGpio_GpioSelectFunction(stcUartGpios[i].u8Gpio,stcUartGpios[i].u8Function);
             }
             if ((pstcInternHandle->stcGpios.i8RtsPin != -1) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeRts) && (stcUartGpios[i].u8Gpio == pstcInternHandle->stcGpios.i8RtsPin))
             {

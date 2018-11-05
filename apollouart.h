@@ -346,7 +346,7 @@ extern "C"
 typedef int16_t (*pfn_apollouart_txnext_t) (void);
 typedef void (*pfn_apollouart_rx_t)(int16_t);
 
-#if defined(APOLLO2_H)
+#if defined(APOLLO2_H) || defined(APOLLO3_H)
 typedef UART0_Type UART_Type;
 #endif
 
