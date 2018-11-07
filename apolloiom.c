@@ -1512,18 +1512,18 @@ en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,
     #if (APOLLOSWSPI_ENABLED == 1)
        if (pstcHandle == IOMSTR_SWSPI)
        {
-           if (u32Options & AM_HAL_IOM_CS_LOW)
-           {
-               ApolloGpio_GpioSet(u32ChipSelect,FALSE);
-           }
+           //if (u32Options & AM_HAL_IOM_CS_LOW)
+           //{
+           //    ApolloGpio_GpioSet(u32ChipSelect,FALSE);
+           //}
            for (i = 0;i < u32NumBytes;i++)
            {
                ApolloIom_SwSpiReadWrite(pstcData->stcGpios.u8MosiPin,pstcData->stcGpios.u8MisoPin,pstcData->stcGpios.u8SckPin,pu8Data[i],((u32Options & AM_HAL_IOM_LSB_FIRST) != 0));
            }
-           if (u32Options & AM_HAL_IOM_CS_LOW)
-           {
-               ApolloGpio_GpioSet(u32ChipSelect,TRUE);
-           }
+           //if (u32Options & AM_HAL_IOM_CS_LOW) && (u32Options 
+           //{
+           //    ApolloGpio_GpioSet(u32ChipSelect,TRUE);
+           //}
            if (pu32BytesWritten != NULL) *pu32BytesWritten = u32NumBytes;
 
            if (pstcData->pfnCallback != NULL)
@@ -1908,7 +1908,10 @@ en_result_t ApolloIom_SpiReadRegister(IOMSTR0_Type* pstcHandle, uint32_t u32Chip
     en_result_t res = Ok;
     res = ApolloIom_SpiWrite(pstcHandle,u32Chipselect,&u8Register,1,NULL,AM_HAL_IOM_RAW | AM_HAL_IOM_CS_LOW,NULL);
     if (res != Ok) return res;
-    while(pstcHandle->STATUS_b.IDLEST == 0) __NOP();
+    if (pstcHandle != IOMSTR_SWSPI)
+    {
+        while(pstcHandle->STATUS_b.IDLEST == 0) __NOP();
+    }
     res = ApolloIom_SpiRead(pstcHandle,u32Chipselect,pu8Data,u32Length,NULL,AM_HAL_IOM_RAW,NULL);
     return res;
 }
@@ -1934,7 +1937,10 @@ en_result_t ApolloIom_SpiWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32Chi
     en_result_t res = Ok;
     res = ApolloIom_SpiWrite(pstcHandle,u32Chipselect,&u8Register,1,NULL,AM_HAL_IOM_RAW | AM_HAL_IOM_CS_LOW,NULL);
     if (res != Ok) return res;
-    while(pstcHandle->STATUS_b.IDLEST == 0) __NOP();
+    if (pstcHandle != IOMSTR_SWSPI)
+    {
+        while(pstcHandle->STATUS_b.IDLEST == 0) __NOP();
+    }
     res = ApolloIom_SpiWrite(pstcHandle,u32Chipselect,pu8Data,u32Length,NULL,AM_HAL_IOM_RAW,NULL);
     return res;
 }
@@ -1949,6 +1955,10 @@ en_result_t ApolloIom_SpiWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32Chi
 ******************************************************************************/
 en_result_t ApolloIom_CheckReady(IOMSTR0_Type* pstcHandle)
 {
+    if (pstcHandle == IOMSTR_SWSPI)
+    {
+        return Ok;
+    }
     if ((pstcHandle->STATUS_b.IDLEST == 1) && (pstcHandle->STATUS_b.CMDACT == 0))
     {
         return Ok;
@@ -1969,6 +1979,10 @@ en_result_t ApolloIom_CheckReady(IOMSTR0_Type* pstcHandle)
 ******************************************************************************/
 en_result_t ApolloIom_CheckFinished(IOMSTR0_Type* pstcHandle)
 {
+    if (pstcHandle == IOMSTR_SWSPI)
+    {
+        return Ok;
+    }
     if ((pstcHandle->STATUS_b.IDLEST == 1) && (pstcHandle->STATUS_b.CMDACT == 0))
     {
         return Ok;
@@ -2030,18 +2044,18 @@ en_result_t ApolloIom_SpiRead(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, 
     #if (APOLLOSWSPI_ENABLED == 1)
        if (pstcHandle == IOMSTR_SWSPI)
        {
-           if (u32Options & AM_HAL_IOM_CS_LOW)
-           {
-               ApolloGpio_GpioSet(u32ChipSelect,FALSE);
-           }
+           //if (u32Options & AM_HAL_IOM_CS_LOW)
+           //{
+           //    ApolloGpio_GpioSet(u32ChipSelect,FALSE);
+           //}
            for (i = 0;i < u32NumBytes;i++)
            {
                pu8Data[i] = ApolloIom_SwSpiReadWrite(pstcData->stcGpios.u8MosiPin,pstcData->stcGpios.u8MisoPin,pstcData->stcGpios.u8SckPin,0x00,((u32Options & AM_HAL_IOM_LSB_FIRST) != 0));
            }
-           if (u32Options & AM_HAL_IOM_CS_LOW)
-           {
-               ApolloGpio_GpioSet(u32ChipSelect,TRUE);
-           }
+           //if (u32Options & AM_HAL_IOM_CS_LOW)
+           //{
+           //    ApolloGpio_GpioSet(u32ChipSelect,TRUE);
+           //}
            if (pu32BytesRead != NULL) *pu32BytesRead = u32NumBytes;
 
            if (pstcData->pfnCallback != NULL)
@@ -2192,28 +2206,49 @@ uint8_t ApolloIom_SwSpiReadWrite(uint32_t u32MosiPin, uint32_t u32MisoPin, uint3
 {
     int8_t i;
     uint8_t u8DataIn = 0;
+    volatile uint32_t* MisoReg =&GPIO->RDA;
+    uint32_t MisoMask = (1 << u32MisoPin);
+    volatile uint32_t* MosiReg =&GPIO->WTA;
+    uint32_t MosiMask = (1 << u32MosiPin);
+    volatile uint32_t* SckReg =&GPIO->WTA;
+    uint32_t SckMask = (1 << u32SckPin);
+    if (u32MisoPin > 32) 
+    {
+        MisoReg = &GPIO->RDB;
+        MisoMask = (1 << (u32MisoPin - 32));
+    }
+    if (u32MosiPin > 32) 
+    {
+        MosiReg = &GPIO->WTB;
+        MosiMask = (1 << (u32MosiPin - 32));
+    }
+    if (u32SckPin > 32) 
+    {
+        SckReg = &GPIO->WTB;
+        SckMask = (1 << (u32SckPin - 32));
+    }
 
     if (bOrderLsbFirst == FALSE)
     {
         for (i = 8; i > 0; i--)
         {
-            if ((1 == ApolloGpio_GpioGet(u32MisoPin)))
+            if (*MisoReg & MisoMask)
             {
                 u8DataIn |= (1<<(i-1));
             }
 
             if (u8DataOut & 0x80)
             {
-                ApolloGpio_GpioSet(u32MosiPin,TRUE);
+                *MosiReg |= MosiMask;
             } else
             {
-                ApolloGpio_GpioSet(u32MosiPin,FALSE);
+                *MosiReg &= ~MosiMask;
             }
-            u8DataOut = u8DataOut>>1;
+            u8DataOut = u8DataOut<<1;
 
-            ApolloGpio_GpioSet(u32SckPin,TRUE);
+            *SckReg |= SckMask;
 
-            ApolloGpio_GpioSet(u32SckPin,FALSE);
+            *SckReg &= ~SckMask;
         }
     } else
     {
@@ -2221,21 +2256,21 @@ uint8_t ApolloIom_SwSpiReadWrite(uint32_t u32MosiPin, uint32_t u32MisoPin, uint3
         {
             if (u8DataOut & 0x01)
             {
-                ApolloGpio_GpioSet(u32MosiPin,TRUE);
+                *MosiReg |= MosiMask;
             } else
             {
-                ApolloGpio_GpioSet(u32MosiPin,FALSE);
+                *MosiReg &= ~MosiMask;
             }
             u8DataOut = u8DataOut>>1;
 
-            ApolloGpio_GpioSet(u32SckPin,TRUE);
+             *SckReg |= SckMask;
 
-            if ((1 == ApolloGpio_GpioGet(u32MisoPin)))
+            if (*MisoReg & MisoMask)
             {
                 u8DataIn |= (1<<(i));
             }
 
-            ApolloGpio_GpioSet(u32SckPin,FALSE);
+             *SckReg &= ~SckMask;
         }
     }
 
