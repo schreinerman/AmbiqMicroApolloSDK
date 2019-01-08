@@ -51,6 +51,7 @@ so agrees to indemnify Fujitsu against all liability.
 **   - 2018-08-09  v1.7d Manuel Schreiner   Added ready check, added polling example
 **                                          ,added CS GPIO functions not using CS triggered by IOM
 **                                          ,added fist support for Apollo3 direct transfer mode
+**   - 2019-01-08  v1.7e Manuel Schreiner   Hotfix if SWSPI is not enabled, but referred to an SWSPI handle that is not existing
 **
 *****************************************************************************/
 #ifndef __APOLLOIOM_H__

@@ -51,6 +51,7 @@ so agrees to indemnify Fujitsu against all liability.
 **   - 2018-08-09  v1.7d Manuel Schreiner   Added ready check, added polling example
 **                                          ,added CS GPIO functions not using CS triggered by IOM
 **                                          ,added fist support for Apollo3 direct transfer mode
+**   - 2019-01-08  v1.7e Manuel Schreiner   Hotfix if SWSPI is not enabled, but referred to an SWSPI handle that is not existing
 **
 *****************************************************************************/
 #define __APOLLOIOM_C__
@@ -1908,7 +1909,9 @@ en_result_t ApolloIom_SpiReadRegister(IOMSTR0_Type* pstcHandle, uint32_t u32Chip
     en_result_t res = Ok;
     res = ApolloIom_SpiWrite(pstcHandle,u32Chipselect,&u8Register,1,NULL,AM_HAL_IOM_RAW | AM_HAL_IOM_CS_LOW,NULL);
     if (res != Ok) return res;
+    #if defined(IOMSTR_SWSPI)
     if (pstcHandle != IOMSTR_SWSPI)
+    #endif
     {
         while(pstcHandle->STATUS_b.IDLEST == 0) __NOP();
     }
@@ -1937,7 +1940,9 @@ en_result_t ApolloIom_SpiWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32Chi
     en_result_t res = Ok;
     res = ApolloIom_SpiWrite(pstcHandle,u32Chipselect,&u8Register,1,NULL,AM_HAL_IOM_RAW | AM_HAL_IOM_CS_LOW,NULL);
     if (res != Ok) return res;
+    #if defined(IOMSTR_SWSPI)
     if (pstcHandle != IOMSTR_SWSPI)
+    #endif
     {
         while(pstcHandle->STATUS_b.IDLEST == 0) __NOP();
     }
@@ -1955,10 +1960,12 @@ en_result_t ApolloIom_SpiWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32Chi
 ******************************************************************************/
 en_result_t ApolloIom_CheckReady(IOMSTR0_Type* pstcHandle)
 {
+    #if defined(IOMSTR_SWSPI)
     if (pstcHandle == IOMSTR_SWSPI)
     {
         return Ok;
     }
+    #endif
     if ((pstcHandle->STATUS_b.IDLEST == 1) && (pstcHandle->STATUS_b.CMDACT == 0))
     {
         return Ok;
@@ -1979,10 +1986,12 @@ en_result_t ApolloIom_CheckReady(IOMSTR0_Type* pstcHandle)
 ******************************************************************************/
 en_result_t ApolloIom_CheckFinished(IOMSTR0_Type* pstcHandle)
 {
+    #if defined(IOMSTR_SWSPI)
     if (pstcHandle == IOMSTR_SWSPI)
     {
         return Ok;
     }
+    #endif
     if ((pstcHandle->STATUS_b.IDLEST == 1) && (pstcHandle->STATUS_b.CMDACT == 0))
     {
         return Ok;
