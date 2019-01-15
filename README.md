@@ -1,9 +1,29 @@
 # AmbiqMicroApolloSDK (beta)
-Alternative SDK for Ambiq Micro Apollo 1 and 2 MCU from Fujitsu (beta)
+Alternative SDK for Ambiq Micro Apollo 1 and 2 MCU from Fujitsu (beta and under development)
+
+Official low-level drivers for Apollo1 can be found here:
+https://ambiqmicro.com/apollo-ultra-low-power-mcus/apollo1-mcu/
+
+Official low-level drivers for Apollo2 can be found here:
+https://ambiqmicro.com/apollo-ultra-low-power-mcus/apollo2-mcu/
+
+Official low-level drivers for Apollo2Blue can be found here:
+https://ambiqmicro.com/apollo-ultra-low-power-mcus/apollo2-blue-mcu/
 
 The alternative SDK for Ambiq Micro Apollo 1 and 2 MCUs is offering CMSIS compatible implementations. In the first step the API is not yet CMSIS driver API compatible, but this feature will be added as next step.
 
-The SDK can be used with FEEU MCU Templates, already configured for the correct device.
+The SDK can be used with FEEU MCU Templates, already configured for the correct device. 
+
+The latest MCU Template for Apollo1 and software examples can be found here:
+http://www.feeu.com/apollo1
+
+
+The latest MCU Template for Apollo2 and software examples can be found here:
+http://www.feeu.com/apollo2
+
+See also FEEUs ClickBeetle(TM) Platform for example software:
+http://www.feeu.com/clickbeetle
+
 
 # Usage with MCU Templates
 Low-Level drivers are put into <root>\library\lowlevel
