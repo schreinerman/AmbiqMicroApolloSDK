@@ -41,6 +41,7 @@ so agrees to indemnify Fujitsu against all liability.
  **   - 2017-10-17  V1.1  Manuel Schreiner   Fixed ApolloSysCtrl48MHz setting 
  **   - 2018-07-06  V1.2  Manuel Schreiner   Updated documentation, 
  **                                          now part of the FEEU ClickBeetle(TM) SW Framework
+ **   - 2019-01-11  V1.3  Manuel Schreiner   Added cache control for Apollo2
  **
  *****************************************************************************/
 #define __APOLLOSYSCTRL_C__
@@ -356,6 +357,61 @@ void ApolloSysCtrl_RtcClockInput(en_apollosysctrl_rtcclk_t enClockSrc)
         CLKGEN->OCTRL_b.OSEL = 1;
     }
 }
+
+#if defined(APOLLO2_H)
+/**
+ ******************************************************************************
+ ** \brief  Enable cache for caching flash data and instructions
+ **
+ ******************************************************************************/
+en_result_t ApolloSysctrl_EnableCache(void)
+{
+    
+    uint32_t u32Conf;
+    volatile uint32_t u32Timeout;
+    u32Conf = _VAL2FLD(CACHECTRL_CACHECFG_ENABLE,1) | 
+              _VAL2FLD(CACHECTRL_CACHECFG_LRU,1) |
+              _VAL2FLD(CACHECTRL_CACHECFG_ENABLE_NC0,0) |
+              _VAL2FLD(CACHECTRL_CACHECFG_ENABLE_NC1,0) |
+              _VAL2FLD(CACHECTRL_CACHECFG_CONFIG,5) |
+              _VAL2FLD(CACHECTRL_CACHECFG_SERIAL,0) |
+              _VAL2FLD(CACHECTRL_CACHECFG_CACHE_CLKGATE,1) |
+              _VAL2FLD(CACHECTRL_CACHECFG_CACHE_LS,0) |
+              _VAL2FLD(CACHECTRL_CACHECFG_DLY,1) |
+              _VAL2FLD(CACHECTRL_CACHECFG_SMDLY,1) |
+              _VAL2FLD(CACHECTRL_CACHECFG_DATA_CLKGATE,1) |
+              _VAL2FLD(CACHECTRL_CACHECFG_ENABLE_MONITOR,0);
+    PWRCTRL->MEMEN |= _VAL2FLD(PWRCTRL_MEMEN_CACHEB0,1) | _VAL2FLD(PWRCTRL_MEMEN_CACHEB2,1);
+    CACHECTRL->CACHECFG = u32Conf;
+    for (u32Timeout = 0; u32Timeout < 50; u32Timeout++)
+    {
+        if (CACHECTRL->CACHECTRL_b.CACHE_READY)
+        {
+            break;
+        }
+    }
+
+    CACHECTRL->CACHECTRL_b.INVALIDATE = 1;
+
+    for (u32Timeout = 0; u32Timeout < 50; u32Timeout++)
+    {
+        if (CACHECTRL->CACHECTRL_b.CACHE_READY)
+        {
+            break;
+        }
+    }
+
+    u32Conf |= _VAL2FLD(CACHECTRL_CACHECFG_ICACHE_ENABLE,1) | _VAL2FLD(CACHECTRL_CACHECFG_DCACHE_ENABLE,1);
+
+    CACHECTRL->CACHECFG = u32Conf;
+
+    if (CACHECTRL->CACHECTRL_b.CACHE_READY == 0)
+    {
+        return Error;
+    }
+    return Ok;
+}
+#endif
 
 #if defined(APOLLO_H) || defined(APOLLO1_H)
 /**

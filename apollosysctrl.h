@@ -41,7 +41,7 @@ so agrees to indemnify Fujitsu against all liability.
  **   - 2017-10-17  V1.1  Manuel Schreiner   Fixed ApolloSysCtrl48MHz setting 
  **   - 2018-07-06  V1.2  Manuel Schreiner   Updated documentation, 
  **                                          now part of the FEEU ClickBeetle(TM) SW Framework
-
+ **   - 2019-01-11  V1.3  Manuel Schreiner   Added cache control for Apollo2
  *****************************************************************************/
 #ifndef __APOLLOSYSCTRL_H__
 #define __APOLLOSYSCTRL_H__
@@ -165,6 +165,9 @@ void ApolloSysCtrl_XtEnable(boolean_t bOnOff);
 void ApolloSysCtrl_LfrcEnable(boolean_t bOnOff);
 void ApolloSysCtrl_XtSwitchToLfrcOnFaitureEnable(boolean_t bOnOff);
 void ApolloSysCtrl_RtcClockInput(en_apollosysctrl_rtcclk_t enClockSrc);
+#if defined(APOLLO2_H)
+en_result_t ApolloSysctrl_EnableCache(void);
+#endif
 
 #ifdef __cplusplus
 }
