@@ -52,6 +52,7 @@ so agrees to indemnify Fujitsu against all liability.
 **                                          ,added CS GPIO functions not using CS triggered by IOM
 **                                          ,added fist support for Apollo3 direct transfer mode
 **   - 2019-01-08  v1.7e Manuel Schreiner   Hotfix if SWSPI is not enabled, but referred to an SWSPI handle that is not existing
+**   - 2019-01-10  v1.7f Manuel Schreiner   Added CS configuration and Debug information
 **
 *****************************************************************************/
 #ifndef __APOLLOIOM_H__
@@ -525,8 +526,8 @@ typedef struct stc_apolloiom_gpio_func
 {
     IOMSTR0_Type* pstcHandle;
     stc_apolloiom_gpios_t stcGpios;
-    uint8_t u8FunctionSPI;
-    uint8_t u8FunctionI2C;
+    uint8_t u8FunctionSPI : 4;
+    uint8_t u8FunctionI2C : 4;
 } stc_apolloiom_gpio_func_t;
 
 //*****************************************************************************
@@ -649,6 +650,9 @@ typedef struct stc_apolloiom_instance_data
 /* Global function prototypes ('extern', definition in C source)             */
 /*****************************************************************************/
 
+en_result_t ApolloIOM_InitSpiCs(IOMSTR0_Type* pstcHandle, uint8_t u8Pin,uint8_t* pu8Channel);
+en_result_t ApolloIOM_GetCsChannel(IOMSTR0_Type* pstcHandle, uint8_t u8Pin, uint8_t* pu8Channel);
+en_result_t ApolloIOM_GetCsChannelAndFunction(IOMSTR0_Type* pstcHandle, uint8_t u8Pin, uint8_t* pu8Function, uint8_t* pu8Channel);
 en_result_t ApolloIOM_Enable(IOMSTR0_Type* pstcHandle);
 en_result_t ApolloIOM_Disable(IOMSTR0_Type* pstcHandle);
 en_result_t ApolloIom_CheckReady(IOMSTR0_Type* pstcHandle);
