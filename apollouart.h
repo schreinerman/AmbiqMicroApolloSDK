@@ -56,6 +56,8 @@
  **   - 2018-07-06  V1.7  Manuel Schreiner   Updated documentation, 
  **                                          now part of the FEEU ClickBeetle(TM) SW Framework
  **   - 2018-07-24  V1.8  Manuel Schreiner   Updated pin-configuration and status-infomration
+ **   - 2019-01-15  V1.9  Manuel Schreiner   Fixed input/output pin configuration setup
+ **                                          Added debug tracing
  **
  *****************************************************************************/
 
