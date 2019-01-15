@@ -56,6 +56,8 @@
  **   - 2018-07-06  V1.7  Manuel Schreiner   Updated documentation,
  **                                          now part of the FEEU ClickBeetle(TM) SW Framework
  **   - 2018-07-24  V1.8  Manuel Schreiner   Updated pin-configuration and status-infomration
+ **   - 2019-01-15  V1.9  Manuel Schreiner   Fixed input/output pin configuration setup
+ **                                          Added debug tracing
  **
  *****************************************************************************/
 #define __APOLLOUART_C__
@@ -65,8 +67,34 @@
 #include "apollouart.h"
 #include "stdio.h"
 #include "string.h"
-#include "apolloctimer.h"
 #include "mcu.h"
+#if (APOLLOGPIO_ENABLED == 1)
+#include "apollogpio.h"
+#endif
+
+#if (UART_DEBUG == 1)
+  #warning UART_DEBUG == 1
+  #if APOLLOUART_ENABLED == 1
+     #warning APOLLOUART_ENABLED == 1
+     #if defined(UART)
+     #warning   ==> APOLLOUART_ENABLED == 1
+     #endif
+     #if defined(UART0)
+     #warning   ==> APOLLOUART0_ENABLED == 1
+     #endif
+     #if defined(UART1)
+     #warning   ==> APOLLOUART1_ENABLED == 1
+     #endif
+  #else
+    #if APOLLOUART0_ENABLED == 1
+       #warning APOLLOUART0_ENABLED == 1
+    #endif
+    #if APOLLOUART1_ENABLED == 1
+       #warning APOLLOUART1_ENABLED == 1
+    #endif
+  #endif
+#endif
+
 #if (APOLLOUART_ENABLED == 1) || (APOLLOUART0_ENABLED == 1) || (APOLLOUART1_ENABLED == 1)
 /*****************************************************************************/
 /* Local pre-processor symbols/macros ('#define')                            */
@@ -74,6 +102,32 @@
 
 #define INSTANCE_COUNT (uint32_t)(sizeof(m_astcInstanceDataLut) / sizeof(m_astcInstanceDataLut[0]))
 #define UARTGPIOS_COUNT (uint32_t)(sizeof(stcUartGpios) / sizeof(stcUartGpios[0]))
+
+//set DEBUG_OUTPUT 1 and IOM_DEBUG to 1 in RTE_Device.h to have Debug information output
+#if (DEBUG_OUTPUT == 1) && (!defined(debugprint))
+#define debugprint(...) if ((CoreDebug->DHCSR & (1 << CoreDebug_DHCSR_C_DEBUGEN_Pos)) != 0) printf(__VA_ARGS__)
+#define debugprintln(...) debugprint(__VA_ARGS__); debugprint("\r\n")
+#endif
+
+//#if !defined(debugprint)
+//#define debugprint(...)   
+//#endif
+//#if !defined(debugprintln)
+//#define debugprintln(...) 
+//#endif
+
+#if (UART_DEBUG == 1) && (DEBUG_OUTPUT == 0)
+#warning UART_DEBUG is 1 but DEBUG_OUT is 0, so no output is produced
+#endif
+#if UART_DEBUG == 1
+#define UART_DEBUG_PRINT(...) debugprint(__VA_ARGS__)
+#define UART_DEBUG_PRINTLN(...) debugprintln(__VA_ARGS__)
+#define UART_ASSERT(...) debugprint("Error: "); debugprint(__FILE__); debugprint(", "); debugprint("#%d",__LINE__); debugprintln(":");  debugprint(__VA_ARGS__)
+#else 
+#define UART_DEBUG_PRINT(...)
+#define UART_DEBUG_PRINTLN(...)
+#define UART_ASSERT(...)
+#endif
 
 /*****************************************************************************/
 /* Global variable definitions (declared in header file with 'extern')       */
@@ -1344,8 +1398,10 @@ void ApolloUart_Init(UART_Type* pstcUart,uint32_t u32Baudrate)
     // Enable UART after config...
     //
     ApolloUart_Enable(pstcUart);
+
 }
 
+#if (APOLLOGPIO_ENABLED == 1)
 /**
  ******************************************************************************
  ** \brief  Simple init UART by pin and baudrate
@@ -1374,6 +1430,7 @@ en_result_t ApolloUart_InitByPin(uint8_t u8RxPin,uint8_t u8TxPin,uint32_t u32Bau
         {
             if ((stcUartGpios[i].u8Gpio == u8RxPin) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeRx))
             {
+                ApolloGpio_GpioInputEnable(u8RxPin,TRUE);
                 ApolloGpio_GpioSelectFunction(u8RxPin,stcUartGpios[i].u8Function);
                 pstcUart = stcUartGpios[i].pstcHandle;
                 pstcHandle = GetInternDataPtr(pstcUart);
@@ -1381,6 +1438,7 @@ en_result_t ApolloUart_InitByPin(uint8_t u8RxPin,uint8_t u8TxPin,uint32_t u32Bau
                 bRxDone = TRUE;
             } else if ((stcUartGpios[i].u8Gpio == u8TxPin) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeTx))
             {
+                ApolloGpio_GpioOutputEnable(u8TxPin,TRUE);
                 ApolloGpio_GpioSelectFunction(u8TxPin,stcUartGpios[i].u8Function);
                 pstcUart = stcUartGpios[i].pstcHandle;
                 pstcHandle = GetInternDataPtr(pstcUart);
@@ -1398,8 +1456,10 @@ en_result_t ApolloUart_InitByPin(uint8_t u8RxPin,uint8_t u8TxPin,uint32_t u32Bau
             return Ok;
         }
     }
+    UART_ASSERT("ApolloUart_InitByPin, no valid GPIO configuration found.\r\n");
     return Error;
 }
+#endif
 
 /**
  ******************************************************************************
@@ -1492,9 +1552,9 @@ void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcCo
     //
     // Disable UART before config...
     //
-    pstcUart->CR_b.UARTEN = 0;                //enable UART
-    pstcUart->CR_b.RXE = 0;                   //enable receiver
-    pstcUart->CR_b.TXE = 0;                   //enable transmitter
+    pstcUart->CR_b.UARTEN = 0;                //disable UART
+    pstcUart->CR_b.RXE = 0;                   //disable receiver
+    pstcUart->CR_b.TXE = 0;                   //disable transmitter
 
 
     //
@@ -1601,12 +1661,26 @@ stc_apollouart_status_t ApolloUart_GetStatus(UART_Type* pstcUart)
 void ApolloUart_Enable(UART_Type* pstcUart)
 {
     stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
+    uint32_t i;
+
     //
     // Enable UART after config...
     //
     pstcUart->CR_b.UARTEN = 1;                    //enable UART
+
     pstcUart->CR_b.RXE = pstcHandle->bRxEnabled;
     pstcUart->CR_b.TXE = pstcHandle->bTxEnabled;
+
+    if ((pstcHandle->stcGpios.i8RxPin >= 0) && (pstcHandle->stcGpios.i8RxPin < 50))
+    {
+        ApolloGpio_GpioInputEnable(pstcHandle->stcGpios.i8RxPin,TRUE);
+    }
+
+    if ((pstcHandle->stcGpios.i8TxPin >= 0) && (pstcHandle->stcGpios.i8TxPin < 50))
+    {
+        ApolloGpio_GpioOutputEnable(pstcHandle->stcGpios.i8TxPin,TRUE);
+    }
+    
 }
 
 /**
@@ -1619,13 +1693,33 @@ void ApolloUart_Enable(UART_Type* pstcUart)
 
 void ApolloUart_Disable(UART_Type* pstcUart)
 {
+    volatile uint32_t u32Timeout = 1000000;
     stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
+
+    //
+    // Make sure peripheral is not busy
+    //
+    if (pstcUart->FR_b.BUSY == 1)
+    {
+        while(u32Timeout > 0)
+        {
+             u32Timeout--;
+             if (pstcUart->FR_b.BUSY == 0)
+             {
+                 break;
+             }
+        }
+    }
     //
     // Enable UART after config...
     //
     pstcUart->CR_b.RXE = 0;
     pstcUart->CR_b.TXE = 0;
-    pstcUart->CR_b.UARTEN = 0;                    //enable UART
+    pstcUart->CR_b.UARTEN = 0;                    //disable UART
+    if ((pstcHandle->stcGpios.i8RxPin >= 0) && (pstcHandle->stcGpios.i8RxPin < 50))
+    {
+        ApolloGpio_GpioInputEnable(pstcHandle->stcGpios.i8RxPin,FALSE);
+    }
 }
 
 /**
@@ -1659,7 +1753,7 @@ void ApolloUart_InitGpios(UART_Type* pstcUart)
             }
             if ((pstcInternHandle->stcGpios.i8TxPin != -1) && (stcUartGpios[i].enUartType == ApolloUartGpioTypeTx) && (stcUartGpios[i].u8Gpio == pstcInternHandle->stcGpios.i8TxPin))
             {
-                ApolloGpio_GpioOutputEnable(pstcInternHandle->stcGpios.i8RxPin,TRUE);
+                ApolloGpio_GpioOutputEnable(pstcInternHandle->stcGpios.i8TxPin,TRUE);
                 ApolloGpio_GpioSelectFunction(stcUartGpios[i].u8Gpio,stcUartGpios[i].u8Function);
             }
         }
@@ -1680,7 +1774,11 @@ void ApolloUart_InitGpios(UART_Type* pstcUart)
 void ApolloUart_RegisterCallbacks(UART_Type* pstcUart,pfn_apollouart_txnext_t cbTxNext, pfn_apollouart_rx_t cbRx)
 {
     stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
-    if (pstcHandle == NULL) return;
+    if (pstcHandle == NULL) 
+    {
+        UART_ASSERT("ApolloUart_RegisterCallbacks, no data handle for UART handle found, did you forgot to enable it?\r\n");
+        return;
+    }
     pstcHandle->cbTxNext = cbTxNext;
     pstcHandle->cbRx = cbRx;
     if (cbTxNext != NULL)
@@ -1758,8 +1856,12 @@ void ApolloUart_RegisterCallbacks(UART_Type* pstcUart,pfn_apollouart_txnext_t cb
 void ApolloUart_SendPolled(UART_Type* pstcUart, uint8_t* pu8Data,uint32_t u32Size)
 {
     uint32_t i;
-    stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
-    if (pstcHandle == NULL) return;
+    //stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
+    //if (pstcHandle == NULL) 
+    //{
+    //    UART_ASSERT("ApolloUart_SendPolled, no data handle for UART handle found, did you forgot to enable it?\r\n");
+    //    return;
+    //}
     for(i = 0;i < u32Size;i++)
     {
         while(pstcUart->FR_b.TXFF) __NOP();
@@ -1781,8 +1883,12 @@ void ApolloUart_SendPolled(UART_Type* pstcUart, uint8_t* pu8Data,uint32_t u32Siz
 void ApolloUart_ReceivePolled(UART_Type* pstcUart, uint8_t* pu8Data,uint32_t u32Size)
 {
     uint32_t i;
-    stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
-    if (pstcHandle == NULL) return;
+    //stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
+    //if (pstcHandle == NULL) 
+    //{
+    //    UART_ASSERT("ApolloUart_ReceivePolled, no data handle for UART handle found, did you forgot to enable it?\r\n");
+    //    return;
+    //}
     for(i = 0;i < u32Size;i++)
     {
         while(pstcUart->FR_b.RXFE) __NOP();
@@ -1806,8 +1912,12 @@ void ApolloUart_ReceivePolled(UART_Type* pstcUart, uint8_t* pu8Data,uint32_t u32
 void ApolloUart_TransferPolled(UART_Type* pstcUart, uint8_t* pu8DataOut,uint8_t* pu8DataIn,uint32_t u32Size)
 {
     uint32_t i;
-    stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
-    if (pstcHandle == NULL) return;
+    //stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
+    //if (pstcHandle == NULL) 
+    //{
+    //    UART_ASSERT("ApolloUart_TransferPolled, no data handle for UART handle found, did you forgot to enable it?\r\n");
+    //    return;
+    //}
     for(i = 0;i < u32Size;i++)
     {
         while(pstcUart->FR_b.TXFF) __NOP();
@@ -1829,7 +1939,11 @@ void ApolloUart_NewTxData(UART_Type* pstcUart)
 {
     int16_t i16ret;
     stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
-    if (pstcHandle == NULL) return;
+    if (pstcHandle == NULL) 
+    {
+        UART_ASSERT("ApolloUart_NewTxData, no data handle for UART handle found, did you forgot to enable it?\r\n");
+        return;
+    }
     if (pstcHandle->cbTxNext != NULL)
     {
         pstcUart->IEC_b.TXIC = 1;
@@ -1859,7 +1973,11 @@ void ApolloUart_NewTxData(UART_Type* pstcUart)
 boolean_t ApolloUart_NewTxDataEnabled(UART_Type* pstcUart)
 {
     stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
-    if (pstcHandle == NULL) return FALSE;
+    if (pstcHandle == NULL) 
+    {
+        UART_ASSERT("ApolloUart_NewTxDataEnabled, no data handle for UART handle found, did you forgot to enable it?\r\n");
+        return FALSE;
+    }
     if (pstcHandle->cbTxNext != NULL)
     {
         if (pstcUart->IER_b.TXIM == 1)

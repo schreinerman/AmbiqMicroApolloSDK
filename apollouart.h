@@ -92,6 +92,13 @@ extern "C"
  ** - ApolloUart_ReceivePolled()      - receive buffer polled
  ** - ApolloUart_TransferPolled()     - send/received data polled
  ** - ApolloUart_UARTn_IRQHandler()   - execute IRQ handling from OS 
+ **
+ ** Following functions calling ApolloUart_Enable() before transfer and ApolloUart_Disable() after transfer:
+ **
+ ** - ApolloUart_LowPowerPutString()          - put string
+ ** - ApolloUart_LowPowerSendPolled()         - send buffer polled
+ ** - ApolloUart_LowPowerReceivePolled()      - receive buffer polled
+ ** - ApolloUart_LowPowerTransferPolled()     - send/received data polled 
  **   
  ******************************************************************************/
 //@{
@@ -325,7 +332,223 @@ extern "C"
 #define UART_IEC_TXCMPMIC_Msk            (0x1UL)                   /*!< UART IEC: TXCMPMIC (Bitfield-Mask: 0x01)             */
      
 #endif
-     
+
+/**
+ ******************************************************************************
+ ** \brief  Select GPIO function
+ **
+ ** \param  uart_gpio        name, for example UART0TX_GPIO1, UART0RX_GPIO2, 
+ **                          etc. (depending on Apollo1/2/3)
+ **
+ **
+ *****************************************************************************/  
+#define APOLLOUART_GPIO_FNCSEL(uart_gpio) ApolloGpio_GpioSelectFunction((uart_gpio),(uart_gpio ## _FNCSEL))
+
+#if defined(APOLLO_H) || defined(APOLLO1_H)
+
+//Table 239 in Appollo1 datasheet
+#define UARTTX_GPIO0          0
+#define UARTTX_GPIO0_FNCSEL   2
+#define UARTTX_GPIO14        14
+#define UARTTX_GPIO14_FNCSEL  2
+#define UARTTX_GPIO22        22
+#define UARTTX_GPIO22_FNCSEL  0
+#define UARTTX_GPIO35        35
+#define UARTTX_GPIO35_FNCSEL  2
+#define UARTTX_GPIO39        39
+#define UARTTX_GPIO39_FNCSEL  1
+
+//Table 240 in Appollo1 datasheet
+#define UARTRX_GPIO1          1
+#define UARTRX_GPIO1_FNCSEL   2
+#define UARTRX_GPIO15        15
+#define UARTRX_GPIO15_FNCSEL  2
+#define UARTRX_GPIO23        23
+#define UARTRX_GPIO23_FNCSEL  0
+#define UARTRX_GPIO36        36
+#define UARTRX_GPIO36_FNCSEL  2
+#define UARTRX_GPIO40        40
+#define UARTRX_GPIO40_FNCSEL  1
+
+//Table 241 in Appollo1 datasheet
+#define UARTRTS_GPIO5          5
+#define UARTRTS_GPIO5_FNCSEL   2
+#define UARTRTS_GPIO37        37
+#define UARTRTS_GPIO37_FNCSEL  2
+
+//Table 242 in Appollo1 datasheet
+#define UARTCTS_GPIO6          6
+#define UARTCTS_GPIO6_FNCSEL   2
+#define UARTCTS_GPIO38        38
+#define UARTCTS_GPIO38_FNCSEL  2
+
+#elif defined(APOLLO2_H)
+
+//Table 349 in Appollo2 datasheet
+#define UART0TX_GPIO1         1
+#define UART0TX_GPIO1_FNCSEL  2
+#define UART0TX_GPIO7         7
+#define UART0TX_GPIO7_FNCSEL  5
+#define UART0TX_GPIO16       16
+#define UART0TX_GPIO16_FNCSEL 6
+#define UART0TX_GPIO20       20
+#define UART0TX_GPIO20_FNCSEL 4
+#define UART0TX_GPIO22       22
+#define UART0TX_GPIO22_FNCSEL 0
+#define UART0TX_GPIO30       30
+#define UART0TX_GPIO30_FNCSEL 4
+#define UART0TX_GPIO39       39
+#define UART0TX_GPIO39_FNCSEL 0
+
+//Table 350 in Appollo2 datasheet
+#define UART0RX_GPIO2         2
+#define UART0RX_GPIO2_FNCSEL  2
+#define UART0RX_GPIO11       11
+#define UART0RX_GPIO11_FNCSEL 6
+#define UART0RX_GPIO17       17
+#define UART0RX_GPIO17_FNCSEL 6
+#define UART0RX_GPIO21       21
+#define UART0RX_GPIO21_FNCSEL 4
+#define UART0RX_GPIO23       23
+#define UART0RX_GPIO23_FNCSEL 0
+#define UART0RX_GPIO31       31
+#define UART0RX_GPIO31_FNCSEL 4
+#define UART0RX_GPIO40       40
+#define UART0RX_GPIO40_FNCSEL 0
+
+//Table 351 in Appollo2 datasheet
+#define UART0RTS_GPIO3         3
+#define UART0RTS_GPIO3_FNCSEL  0
+#define UART0RTS_GPIO5         5
+#define UART0RTS_GPIO5_FNCSEL  2
+#define UART0RTS_GPIO13       13
+#define UART0RTS_GPIO13_FNCSEL 6
+#define UART0RTS_GPIO35       35
+#define UART0RTS_GPIO35_FNCSEL 6
+#define UART0RTS_GPIO37       37
+#define UART0RTS_GPIO37_FNCSEL 2
+#define UART0RTS_GPIO41       41
+#define UART0RTS_GPIO41_FNCSEL 7
+
+//Table 352 in Appollo2 datasheet
+#define UART0CTS_GPIO4         4
+#define UART0CTS_GPIO4_FNCSEL  0
+#define UART0CTS_GPIO6         6
+#define UART0CTS_GPIO6_FNCSEL  2
+#define UART0CTS_GPIO12       12
+#define UART0CTS_GPIO12_FNCSEL 6
+#define UART0CTS_GPIO29       29
+#define UART0CTS_GPIO29_FNCSEL 4
+#define UART0CTS_GPIO36       36
+#define UART0CTS_GPIO36_FNCSEL 6
+#define UART0CTS_GPIO38       38
+#define UART0CTS_GPIO38_FNCSEL 2
+
+//Table 353 in Appollo2 datasheet
+#define UART1TX_GPIO8         8
+#define UART1TX_GPIO8_FNCSEL  6
+#define UART1TX_GPIO12       12
+#define UART1TX_GPIO12_FNCSEL 7
+#define UART1TX_GPIO14       14
+#define UART1TX_GPIO14_FNCSEL 2
+#define UART1TX_GPIO18       18
+#define UART1TX_GPIO18_FNCSEL 6
+#define UART1TX_GPIO20       20
+#define UART1TX_GPIO20_FNCSEL 5
+#define UART1TX_GPIO35       35
+#define UART1TX_GPIO35_FNCSEL 2
+#define UART1TX_GPIO39       39
+#define UART1TX_GPIO39_FNCSEL 1
+            
+//Table 354 in Appollo2 datasheet
+#define UART1RX_GPIO9         9
+#define UART1RX_GPIO9_FNCSEL  6
+#define UART1RX_GPIO13       13
+#define UART1RX_GPIO13_FNCSEL 7
+#define UART1RX_GPIO15       15
+#define UART1RX_GPIO15_FNCSEL 2
+#define UART1RX_GPIO19       19
+#define UART1RX_GPIO19_FNCSEL 6
+#define UART1RX_GPIO21       21
+#define UART1RX_GPIO21_FNCSEL 5
+#define UART1RX_GPIO36       36
+#define UART1RX_GPIO36_FNCSEL 2
+#define UART1RX_GPIO40       40
+#define UART1RX_GPIO40_FNCSEL 1
+
+//Table 355 in Appollo2 datasheet            
+#define UART1RTS_GPIO10       10
+#define UART1RTS_GPIO10_FNCSEL 5
+#define UART1RTS_GPIO16       16
+#define UART1RTS_GPIO16_FNCSEL 7
+#define UART1RTS_GPIO30       30
+#define UART1RTS_GPIO30_FNCSEL 5
+#define UART1RTS_GPIO44       44
+#define UART1RTS_GPIO44_FNCSEL 0
+            
+//Table 356 in Appollo2 datasheet
+#define UART1CTS_GPIO11       11
+#define UART1CTS_GPIO11_FNCSEL 5
+#define UART1CTS_GPIO17       17
+#define UART1CTS_GPIO17_FNCSEL 7
+#define UART1CTS_GPIO29       29
+#define UART1CTS_GPIO29_FNCSEL 5
+#define UART1CTS_GPIO45       45
+#define UART1CTS_GPIO45_FNCSEL 0
+
+#endif
+/**
+ ******************************************************************************
+ ** \brief  Send data polled (blocking), enables UART before transfer and disables UART after transfer
+ **
+ ** \param  pstcUart         UART pointer
+ **
+ ** \param  pu8Data          Databuffer to send
+ **
+ ** \param u32Size           Size of Data
+ **
+ *****************************************************************************/     
+#define ApolloUart_LowPowerSendPolled(pstcUart,pu8Data,u32Size) ApolloUart_Enable(ptscUart); ApolloUart_SendPolled(pstcUart, pu8Data,uint32_t u32Size); ApolloUart_Disable(ptscUart)
+
+/**
+ ******************************************************************************
+ ** \brief  Receive data polled (blocking, no timeout feature!), enables UART before transfer and disables UART after transfer
+ **
+ ** \param  pstcUart         UART pointer
+ **
+ ** \param  pu8Data          Databuffer to receive
+ **
+ ** \param u32Size           Size of Data
+ **
+ *****************************************************************************/
+#define ApolloUart_LowPowerReceivePolled(pstcUart, pu8Data,u32Size) ApolloUart_Enable(ptscUart); ApolloUart_ReceivePolled(pstcUart, pu8Data,u32Size); ApolloUart_Disable(ptscUart)
+
+/**
+ ******************************************************************************
+ ** \brief  Asynchrounous receive and send data (experimental), enables UART before transfer and disables UART after transfer
+ **
+ ** \param  pstcUart         UART pointer
+ **
+ ** \param  pu8DataOut       Databuffer to send
+ **
+ ** \param  pu8DataIn        Databuffer to receive
+ **
+ ** \param u32Size           Size of Data
+ **
+ *****************************************************************************/
+#define ApolloUart_LowPowerTransferPolled(pstcUart, pu8DataOut,pu8DataIn,u32Size) ApolloUart_Enable(ptscUart); ApolloUart_TransferPolled(pstcUart, pu8DataOut,pu8DataIn,u32Size); ApolloUart_Disable(ptscUart)
+
+/**
+ ******************************************************************************
+ ** \brief  sends a complete string (0-terminated), enables UART before transfer and disables UART after transfer
+ **
+ ** \param  pstcUart  UART pointer
+ **
+ ** \param  pu8Buffer Pointer to (constant) file of bytes in mem
+ **
+ *****************************************************************************/
+#define ApolloUart_LowPowerPutString(pstcUart, pu8Buffer)  ApolloUart_Enable(ptscUart); ApolloUart_PutString(pstcUart, pu8Buffer); ApolloUart_Disable(ptscUart)
+
 #if (!defined(UART0)) && defined(UART)
      #define UART0 UART
 #endif
@@ -432,8 +655,8 @@ typedef struct stc_apollouart_gpios
 {
     UART_Type* pstcHandle;
     uint8_t u8Gpio;
-    uint8_t u8Function;
-    en_apollouart_gpiotype_t enUartType;
+    uint8_t u8Function : 4;
+    en_apollouart_gpiotype_t enUartType : 4;
 } stc_apollouart_gpios_t;
 
 typedef struct stc_apollouart_status
@@ -479,7 +702,9 @@ typedef struct stc_apollouart_instance_data
 
 void ApolloUart_Init(UART_Type* pstcUart,uint32_t u32Baudrate);
 void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcConfig);
+#if (APOLLOGPIO_ENABLED == 1)
 en_result_t ApolloUart_InitByPin(uint8_t u8RxPin,uint8_t u8TxPin,uint32_t u32Baudrate, UART_Type** ppstcUart);
+#endif
 void ApolloUart_InitGpios(UART_Type* pstcUart);
 void ApolloUart_Enable(UART_Type* pstcUart);
 void ApolloUart_Disable(UART_Type* pstcUart);
