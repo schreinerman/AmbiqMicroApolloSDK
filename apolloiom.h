@@ -53,6 +53,8 @@ so agrees to indemnify Fujitsu against all liability.
 **                                          ,added fist support for Apollo3 direct transfer mode
 **   - 2019-01-08  v1.7e Manuel Schreiner   Hotfix if SWSPI is not enabled, but referred to an SWSPI handle that is not existing
 **   - 2019-01-10  v1.7f Manuel Schreiner   Added CS configuration and Debug information
+**   - 2019-01-23  v1.8  Manuel Schreiner   Updated for Apollo1 usage
+**   - 2019-03-04  v1.9  Manuel Schreiner   Added better timeout handling
 **
 *****************************************************************************/
 #ifndef __APOLLOIOM_H__

@@ -53,6 +53,8 @@ so agrees to indemnify Fujitsu against all liability.
 **                                          ,added fist support for Apollo3 direct transfer mode
 **   - 2019-01-08  v1.7e Manuel Schreiner   Hotfix if SWSPI is not enabled, but referred to an SWSPI handle that is not existing
 **   - 2019-01-10  v1.7f Manuel Schreiner   Added CS configuration and Debug information
+**   - 2019-01-23  v1.8  Manuel Schreiner   Updated for Apollo1 usage
+**   - 2019-03-04  v1.9  Manuel Schreiner   Added better timeout handling
 **
 *****************************************************************************/
 #define __APOLLOIOM_C__
@@ -99,7 +101,7 @@ so agrees to indemnify Fujitsu against all liability.
 #if (BLEIF_ENABLED == 1) || (APOLLOSWSPI_ENABLED == 1) || (APOLLOIOM_ENABLED == 1) || (IOMSTR0_ENABLED == 1) || (IOMSTR1_ENABLED == 1) || (IOMSTR2_ENABLED == 1) || (IOMSTR3_ENABLED == 1) || (IOMSTR4_ENABLED == 1) || (IOMSTR5_ENABLED == 1)
 
 #if (APOLLOGPIO_ENABLED == 0) && !defined(__APOLLOGPIO_H__)
-    #error please define APOLLOGPIOS_ENABLED as 1 in RTE_Device.h and add the appollogpio module to your project
+    #error please define APOLLOGPIO_ENABLED as 1 in RTE_Device.h and add the appollogpio module to your project
 #endif
 
 #if defined(APOLLO_H) || defined(APOLLO1_H) 
@@ -324,10 +326,12 @@ static uint32_t DataToFifo(IOMSTR0_Type* pstcHandle, uint8_t* pu8Data, uint32_t 
         IOM_ASSERT("DataToFifo, pstcHandle is NULL\r\n");
         return ErrorInvalidParameter;
     }
+    #if !(defined(APOLLO_H) | defined(APOLLO1_H))
     if (pstcHandle->CFG_b.FULLDUP == 0)
     {
         u32NumBytes = (u32NumBytes <= MAX_FIFO_SIZE ? u32NumBytes : MAX_FIFO_SIZE);
     } else
+    #endif
     {
         u32NumBytes = (u32NumBytes <= (MAX_FIFO_SIZE/2) ? u32NumBytes : (MAX_FIFO_SIZE/2));
     }
@@ -402,11 +406,12 @@ static uint32_t FifoToData(IOMSTR0_Type* pstcHandle, uint8_t* pu8Data, uint32_t 
         return ErrorInvalidParameter;
     }
     //if (u32NumBytes == 0) return Error;
-
-     if (pstcHandle->CFG_b.FULLDUP == 0)
+    #if !(defined(APOLLO_H) | defined(APOLLO1_H))
+    if (pstcHandle->CFG_b.FULLDUP == 0)
     {
         u32NumBytes = (u32NumBytes <= MAX_FIFO_SIZE ? u32NumBytes : MAX_FIFO_SIZE);
     } else
+    #endif
     {
         u32NumBytes = (u32NumBytes <= (MAX_FIFO_SIZE/2) ? u32NumBytes : (MAX_FIFO_SIZE/2));
     }
@@ -555,7 +560,7 @@ en_result_t ApolloIOM_InitSpiCs(IOMSTR0_Type* pstcHandle, uint8_t u8Pin,uint8_t*
 ******************************************************************************/
 en_result_t ApolloIOM_GetCsChannel(IOMSTR0_Type* pstcHandle, uint8_t u8Pin, uint8_t* pu8Channel)
 {
-    return ApolloIOM_GetCsChannelAndFunction(pstcHandle, u8Pin, pu8Channel,NULL);
+    return ApolloIOM_GetCsChannelAndFunction(pstcHandle, u8Pin, NULL, pu8Channel);
 }
 
 /**
@@ -588,7 +593,9 @@ en_result_t ApolloIOM_GetCsChannelAndFunction(IOMSTR0_Type* pstcHandle, uint8_t 
     /*********************************************************************
      **           Apollo 1 IOM CS Pin-Configuration                     **
      *********************************************************************/
-    #if defined(IOMSTR0) && ((IOMSTR0_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
+    switch((uint32_t)pstcHandle)
+    {
+        #if defined(IOMSTR0) && ((IOMSTR0_ENABLED == 1) || (APOLLOIOM_ENABLED == 1))
         case (uint32_t)IOMSTR0:
             if (u8Pin == 4)
             {
@@ -666,6 +673,7 @@ en_result_t ApolloIOM_GetCsChannelAndFunction(IOMSTR0_Type* pstcHandle, uint8_t 
             IOM_ASSERT("ApolloIOM_GetCsChannelAndFunction, no supported CS for IOM1 and pin %d\r\n",u8Pin);
             return Error;
         #endif
+    }
     #elif defined(APOLLO2_H)
     /*********************************************************************
      **           Apollo 2 IOM CS Pin-Configuration                     **
@@ -1001,6 +1009,7 @@ en_result_t ApolloIOM_GetCsChannelAndFunction(IOMSTR0_Type* pstcHandle, uint8_t 
      **           Apollo 3 IOM CS Pin-Configuration                     **
      *********************************************************************/
     #endif
+    return Error;
 }
 /**
 ******************************************************************************
@@ -1208,8 +1217,10 @@ en_result_t ApolloIOM_Disable(IOMSTR0_Type* pstcHandle)
 #endif
     {
         //Poll for IOM had completed the operation
-        SystemCoreClockUpdate();
-        u32Timeout = SystemCoreClock/5;
+
+        u32Timeout = compute_freq( pstcHandle->CLKCFG_b.FSEL, pstcHandle->CLKCFG_b.DIV3,  pstcHandle->CLKCFG_b.DIVEN, pstcHandle->CLKCFG_b.TOTPER);
+        u32Timeout = u32Timeout / ((MAX_FIFO_SIZE + 5) * 8);
+        u32Timeout = (SystemCoreClock / u32Timeout) / 5;
         while(u32Timeout > 0)
         {
             u32Timeout--;
@@ -2161,8 +2172,9 @@ en_result_t ApolloIom_SpiSetCsPolled(IOMSTR0_Type* pstcHandle,uint32_t u32GpioPi
     #if (APOLLOSWSPI_ENABLED == 1)
     if (pstcHandle != IOMSTR_SWSPI) {
     #endif
-        SystemCoreClockUpdate();
-        u32Timeout = SystemCoreClock;
+        u32Timeout = compute_freq( pstcHandle->CLKCFG_b.FSEL, pstcHandle->CLKCFG_b.DIV3,  pstcHandle->CLKCFG_b.DIVEN, pstcHandle->CLKCFG_b.TOTPER);
+        u32Timeout = u32Timeout / ((MAX_FIFO_SIZE + 5) * 8);
+        u32Timeout = (SystemCoreClock / u32Timeout) / 5;
         while(u32Timeout > 0)
         {
             u32Timeout--;
@@ -2217,6 +2229,10 @@ en_result_t ApolloIom_SpiWritePolled(IOMSTR0_Type* pstcHandle, uint32_t u32ChipS
         u32Pos += u32Bw;
     }
     if (pu32BytesWritten != NULL) *pu32BytesWritten = u32Pos;
+    if (FALSE == ApolloIom_CheckReady(pstcHandle)) 
+    {
+        return OperationInProgress; //this is not an error but indicates operation is not finished yet
+    }
     return Ok;
 }
 
@@ -2305,8 +2321,9 @@ en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,
     #endif
 
     //Poll for IOM had completed the operation
-    SystemCoreClockUpdate();
-    u32Timeout = SystemCoreClock/5;
+    u32Timeout = compute_freq( pstcHandle->CLKCFG_b.FSEL, pstcHandle->CLKCFG_b.DIV3,  pstcHandle->CLKCFG_b.DIVEN, pstcHandle->CLKCFG_b.TOTPER);
+    u32Timeout = u32Timeout / ((MAX_FIFO_SIZE + 5) * 8);
+    u32Timeout = (SystemCoreClock / u32Timeout) / 5;
     while(u32Timeout > 0)
     {
         u32Timeout--;
@@ -2317,11 +2334,12 @@ en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,
         IOM_ASSERT("ApolloIom_SpiWrite, error timed-out\r\n");
         return ErrorTimeout;
     }
-
-     if (pstcHandle->CFG_b.FULLDUP == 0)
+    #if !(defined(APOLLO_H) | defined(APOLLO1_H))
+    if (pstcHandle->CFG_b.FULLDUP == 0)
     {
         u32NumBytes = (u32NumBytes <= MAX_FIFO_SIZE ? u32NumBytes : MAX_FIFO_SIZE);
     } else
+    #endif
     {
         u32NumBytes = (u32NumBytes <= (MAX_FIFO_SIZE/2) ? u32NumBytes : (MAX_FIFO_SIZE/2));
     }
@@ -2353,6 +2371,11 @@ en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,
 
     *pu32BytesWritten = u32NumBytes;
     pstcHandle->INTEN = u32IrqBackup;
+
+    if (FALSE == ApolloIom_CheckReady(pstcHandle)) 
+    {
+        return OperationInProgress; //this is not an error but indicates operation is not finished yet
+    }
     return Ok;
 }
 
@@ -2462,8 +2485,9 @@ en_result_t ApolloIom_SpiTransfer(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSele
     #endif
 
     //Poll for IOM had completed the operation
-    SystemCoreClockUpdate();
-    u32Timeout = SystemCoreClock/5;
+    u32Timeout = compute_freq( pstcHandle->CLKCFG_b.FSEL, pstcHandle->CLKCFG_b.DIV3,  pstcHandle->CLKCFG_b.DIVEN, pstcHandle->CLKCFG_b.TOTPER);
+    u32Timeout = u32Timeout / ((MAX_FIFO_SIZE + 5) * 8);
+    u32Timeout = (SystemCoreClock / u32Timeout) / 5;
     while(u32Timeout > 0)
     {
         u32Timeout--;
@@ -2502,6 +2526,12 @@ en_result_t ApolloIom_SpiTransfer(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSele
 
     *pu32BytesWritten = u32NumBytes;
     pstcHandle->INTEN = u32IrqBackup;
+
+    if (FALSE == ApolloIom_CheckReady(pstcHandle)) 
+    {
+        return OperationInProgress; //this is not an error but indicates operation is not finished yet
+    }
+
     return Ok;
     #endif
 }
@@ -2538,8 +2568,9 @@ en_result_t ApolloIom_I2cWrite(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,
         return ErrorInvalidParameter;
     }
     //Poll for IOM had completed the operation
-    SystemCoreClockUpdate();
-    u32Timeout = SystemCoreClock/5;
+    u32Timeout = compute_freq( pstcHandle->CLKCFG_b.FSEL, pstcHandle->CLKCFG_b.DIV3,  pstcHandle->CLKCFG_b.DIVEN, pstcHandle->CLKCFG_b.TOTPER);
+    u32Timeout = u32Timeout / ((MAX_FIFO_SIZE + 5) * 8);
+    u32Timeout = (SystemCoreClock / u32Timeout) / 5;
     while(u32Timeout > 0)
     {
         u32Timeout--;
@@ -2550,11 +2581,12 @@ en_result_t ApolloIom_I2cWrite(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,
         IOM_ASSERT("ApolloIom_I2cWrite, timed-out\r\n");
         return ErrorTimeout;
     }
-
+    #if !(defined(APOLLO_H) | defined(APOLLO1_H))
     if (pstcHandle->CFG_b.FULLDUP == 0)
     {
         u32NumBytes = (u32NumBytes <= MAX_FIFO_SIZE ? u32NumBytes : MAX_FIFO_SIZE);
     } else
+    #endif
     {
         u32NumBytes = (u32NumBytes <= (MAX_FIFO_SIZE/2) ? u32NumBytes : (MAX_FIFO_SIZE/2));
     }
@@ -2582,6 +2614,10 @@ en_result_t ApolloIom_I2cWrite(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,
     ApolloIom_I2cCommand(pstcHandle,AM_HAL_IOM_WRITE,u32BusAddress,u32NumBytes,u32Options);
     *pu32BytesWritten = u32NumBytes;
     pstcHandle->INTEN = u32IrqBackup;
+    if (FALSE == ApolloIom_CheckReady(pstcHandle)) 
+    {
+        return OperationInProgress; //this is not an error but indicates operation is not finished yet
+    }
     return Ok;
 }
 
@@ -2615,8 +2651,9 @@ en_result_t ApolloIom_I2cRead(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, 
     if (pu32BytesRead == NULL) pu32BytesRead = &tmp;
 
     //Poll for IOM had completed the operation
-    SystemCoreClockUpdate();
-    u32Timeout = SystemCoreClock/5;
+    u32Timeout = compute_freq( pstcHandle->CLKCFG_b.FSEL, pstcHandle->CLKCFG_b.DIV3,  pstcHandle->CLKCFG_b.DIVEN, pstcHandle->CLKCFG_b.TOTPER);
+    u32Timeout = u32Timeout / ((MAX_FIFO_SIZE + 5) * 8);
+    u32Timeout = (SystemCoreClock / u32Timeout) / 5;
     while(u32Timeout > 0)
     {
         u32Timeout--;
@@ -2627,10 +2664,12 @@ en_result_t ApolloIom_I2cRead(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, 
         IOM_ASSERT("ApolloIom_I2cRead,timed-out\r\n");
         return ErrorTimeout;
     }
+    #if !(defined(APOLLO_H) | defined(APOLLO1_H))
     if (pstcHandle->CFG_b.FULLDUP == 0)
     {
         u32NumBytes = (u32NumBytes <= MAX_FIFO_SIZE ? u32NumBytes : MAX_FIFO_SIZE);
     } else
+    #endif
     {
         u32NumBytes = (u32NumBytes <= (MAX_FIFO_SIZE/2) ? u32NumBytes : (MAX_FIFO_SIZE/2));
     }
@@ -2665,7 +2704,8 @@ en_result_t ApolloIom_I2cRead(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, 
         {
             u32ReadLen = len / 4;
             u32ReadLen = u32ReadLen * 4;
-        } else if (u32ReadLen > u32NumBytes)
+        } 
+        if (u32ReadLen > u32NumBytes)
         {
             u32ReadLen = u32NumBytes;
         }
@@ -2934,8 +2974,9 @@ en_result_t ApolloIom_SpiRead(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, 
     #endif
 
     //Poll for IOM had completed the operation
-    SystemCoreClockUpdate();
-    u32Timeout = SystemCoreClock/5;
+    u32Timeout = compute_freq( pstcHandle->CLKCFG_b.FSEL, pstcHandle->CLKCFG_b.DIV3,  pstcHandle->CLKCFG_b.DIVEN, pstcHandle->CLKCFG_b.TOTPER);
+    u32Timeout = u32Timeout / ((MAX_FIFO_SIZE + 5) * 8);
+    u32Timeout = (SystemCoreClock / u32Timeout) / 5;
     while(u32Timeout > 0)
     {
         u32Timeout--;
@@ -2946,11 +2987,12 @@ en_result_t ApolloIom_SpiRead(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, 
         IOM_ASSERT("ApolloIom_SpiRead, timed-out\r\n");
         return ErrorTimeout;
     }
-
+    #if !(defined(APOLLO_H) | defined(APOLLO1_H))
     if (pstcHandle->CFG_b.FULLDUP == 0)
     {
         u32NumBytes = (u32NumBytes <= MAX_FIFO_SIZE ? u32NumBytes : MAX_FIFO_SIZE);
     } else
+    #endif
     {
         u32NumBytes = (u32NumBytes <= (MAX_FIFO_SIZE/2) ? u32NumBytes : (MAX_FIFO_SIZE/2));
     }
