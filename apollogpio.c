@@ -46,6 +46,8 @@ so agrees to indemnify Fujitsu against all liability.
  **                                          now part of the FEEU ClickBeetle(TM) SW Framework
  **   - 2018-10-29  V1.5  Manuel Schreiner   Fixed IRQ handling
  **                                          Added Arduino API, enable via RTE_Device.h APOLLOGPIO_USE_ARDUINO
+ **   - 2019-03-05  V1.6  Manuel Schrener    Added GPIO number validation
+ **                                          Added function for reading current configuration
  **
  *****************************************************************************/
 #define __APOLLOGPIO_C__
@@ -87,7 +89,7 @@ static pfn_apollogpio_callback_t apfnCallbacks[64];
 /*****************************************************************************/
 /* Function implementation - global ('extern') and local ('static')          */
 /*****************************************************************************/
-#if (defined(APOLLO_H) || defined(APOLLO1_H) || defined(APOLLO2_H)) && defined(APOLLOGPIO_USE_IRQS)
+#if (defined(APOLLO_H) || defined(APOLLO1_H) || defined(APOLLO2_H) || defined(APOLLO3_H)) && defined(APOLLOGPIO_USE_IRQS)
 /**
  ******************************************************************************
  ** \brief  GPIO IRQ Handler
@@ -141,6 +143,7 @@ void GPIO_IRQHandler(void)
  ******************************************************************************/
 boolean_t ApolloGpio_IrqIsEnabled(apollogpio_gpio_pin_t pin)
 {
+    if (pin > 49) return FALSE;
     if (pin < 32)
     {
         if ((GPIO->INT0EN & (1 << pin)) != 0)
@@ -167,6 +170,7 @@ boolean_t ApolloGpio_IrqIsEnabled(apollogpio_gpio_pin_t pin)
  ******************************************************************************/
 boolean_t ApolloGpio_IrqIsPending(apollogpio_gpio_pin_t pin)
 {
+    if (pin > 49) return FALSE;
     if (pin < 32)
     {
         if ((GPIO->INT0STAT & (1 << pin)) != 0)
@@ -193,6 +197,7 @@ boolean_t ApolloGpio_IrqIsPending(apollogpio_gpio_pin_t pin)
  ******************************************************************************/
 boolean_t ApolloGpio_IrqExecute(apollogpio_gpio_pin_t pin)
 {
+    if (pin > 49) return FALSE;
     if (pin < 32)
     {
         if ((GPIO->INT0STAT & (1 << pin)) != 0)
@@ -236,7 +241,7 @@ boolean_t ApolloGpio_IrqExecute(apollogpio_gpio_pin_t pin)
 void ApolloGpio_RegisterIrq(apollogpio_gpio_pin_t pin, en_apollogpio_edgedetect_t enMode, uint32_t u32Priority, pfn_apollogpio_callback_t pfnCallback)
 {
     uint32_t u32Status;
-
+    if (pin > 49) return;
     if (pin < 32)
     {
         GPIO->INT0EN &= ~(1 << pin);
@@ -308,6 +313,7 @@ void ApolloGpio_RegisterIrq(apollogpio_gpio_pin_t pin, en_apollogpio_edgedetect_
 void ApolloGpio_UnRegisterIrq(apollogpio_gpio_pin_t pin)
 {
     uint32_t u32Status;
+    if (pin > 49) return;
     if (pin < 32)
     {
         GPIO->INT0EN &= ~(1 << pin);
@@ -336,7 +342,7 @@ void ApolloGpio_UnRegisterIrq(apollogpio_gpio_pin_t pin)
 
 /**
  ******************************************************************************
- ** \brief  Set a value for a specified GPIO
+ ** \brief  Set a value for a specified GPIO (same as ApolloGpio_GpioWrite)
  **
  ** \param pin  Can be every GPIO pin  
  **             for example 1, 2, ... 49
@@ -346,6 +352,7 @@ void ApolloGpio_UnRegisterIrq(apollogpio_gpio_pin_t pin)
  ******************************************************************************/
 void ApolloGpio_GpioSet(apollogpio_gpio_pin_t pin, boolean_t bOnOff)
 {
+    if (pin > 49) return;
     if (bOnOff)
     {
       if (pin < 32)
@@ -364,6 +371,59 @@ void ApolloGpio_GpioSet(apollogpio_gpio_pin_t pin, boolean_t bOnOff)
       {
           GPIO->WTCB = (1 << (pin - 32));
       } 
+    }
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Write a value for a specified GPIO (same as ApolloGpio_GpioSet)
+ **
+ ** \param pin  Can be every GPIO pin  
+ **             for example 1, 2, ... 49
+ **
+ ** \param bOnOff TRUE to set a logical high, FALSE for a logical FALSE
+ **
+ ******************************************************************************/
+void ApolloGpio_GpioWrite(apollogpio_gpio_pin_t pin, boolean_t bOnOff)
+{
+    if (pin > 49) return;
+    if (bOnOff)
+    {
+      if (pin < 32)
+      {
+          GPIO->WTSA = (1 << (pin));
+      } else
+      {
+          GPIO->WTSB = (1 << (pin - 32));
+      }
+    } else
+    {
+      if (pin < 32)
+      {
+          GPIO->WTCA = (1 << (pin));
+      } else
+      {
+          GPIO->WTCB = (1 << (pin - 32));
+      } 
+    }
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Toggle a value for a specified GPIO
+ **
+ ** \param pin  Can be every GPIO pin  
+ **             for example 0, 1, 2, ... 49
+ **
+ ******************************************************************************/
+void ApolloGpio_GpioToggle(apollogpio_gpio_pin_t pin)
+{
+    if (pin < 32)
+    {
+      GPIO->WTA ^= (1 << (pin));
+    } else if (pin < 50)
+    {
+      GPIO->WTB ^= (1 << (pin - 32));
     }
 }
 
@@ -412,7 +472,7 @@ en_result_t ApolloGpio_GetRegisterAddressDataOut(apollogpio_gpio_pin_t pin,stc_a
        pstcRegisterMaskPair->u32Mask = (1 << pin);
        pstcRegisterMaskPair->pRegister = &GPIO->WTA; 
        return Ok;
-    } else if (pin < 49)
+    } else if (pin <= 49)
     {
        pstcRegisterMaskPair->u32Pin = pin;
        pstcRegisterMaskPair->u32Mask = (1 << (pin-32));
@@ -468,7 +528,7 @@ en_result_t ApolloGpio_GetRegisterAddressDataOutSet(apollogpio_gpio_pin_t pin,st
        pstcRegisterMaskPair->u32Mask = (1 << pin);
        pstcRegisterMaskPair->pRegister = &GPIO->WTSA; 
        return Ok;
-    } else if (pin < 49)
+    } else if (pin <= 49)
     {
        pstcRegisterMaskPair->u32Pin = pin;
        pstcRegisterMaskPair->u32Mask = (1 << (pin-32));
@@ -524,7 +584,7 @@ en_result_t ApolloGpio_GetRegisterAddressDataOutClear(apollogpio_gpio_pin_t pin,
        pstcRegisterMaskPair->u32Mask = (1 << pin);
        pstcRegisterMaskPair->pRegister = &GPIO->WTCA; 
        return Ok;
-    } else if (pin < 49)
+    } else if (pin <= 49)
     {
        pstcRegisterMaskPair->u32Pin = pin;
        pstcRegisterMaskPair->u32Mask = (1 << (pin-32));
@@ -536,7 +596,36 @@ en_result_t ApolloGpio_GetRegisterAddressDataOutClear(apollogpio_gpio_pin_t pin,
 
 /**
  ******************************************************************************
- ** \brief  Read a value for a specified GPIO
+ ** \brief  Read a value for a specified GPIO (same as ApolloGpio_GpioGet)
+ **
+ ** \param pin  Can be every GPIO pin  
+ **             for example 1, 2, ... 49
+ **
+ ** \return bOnOff TRUE to set a logical high, FALSE for a logical FALSE
+ **
+ ******************************************************************************/
+boolean_t ApolloGpio_GpioRead(apollogpio_gpio_pin_t pin)
+{
+    if (pin > 49) return FALSE;
+    if (pin < 32)
+    {
+      if (GPIO->RDA & (1 << (pin)))
+      {
+          return TRUE;
+      }
+    } else
+    {
+      if (GPIO->RDB & (1 << (pin - 32)))
+      {
+          return TRUE;
+      }
+    }
+    return FALSE;
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Read a value for a specified GPIO (same as ApolloGpio_GpioRead)
  **
  ** \param pin  Can be every GPIO pin  
  **             for example 1, 2, ... 49
@@ -546,6 +635,7 @@ en_result_t ApolloGpio_GetRegisterAddressDataOutClear(apollogpio_gpio_pin_t pin,
  ******************************************************************************/
 boolean_t ApolloGpio_GpioGet(apollogpio_gpio_pin_t pin)
 {
+    if (pin > 49) return FALSE;
     if (pin < 32)
     {
       if (GPIO->RDA & (1 << (pin)))
@@ -574,9 +664,26 @@ boolean_t ApolloGpio_GpioGet(apollogpio_gpio_pin_t pin)
  ******************************************************************************/
 void ApolloGpio_GpioPullupEnable(apollogpio_gpio_pin_t pin, boolean_t bEnable)
 {
+    if (pin > 49) return;
     GPIO->PADKEY = 0x00000073;
     APOLLOGPIO_PADREG_WRITE(pin,GPIO_PADREGA_PAD0PULL_Msk,(bEnable << GPIO_PADREGA_PAD0PULL_Pos));
     GPIO->PADKEY = 0x00000000;
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Get pullup-enabled for a specified GPIO
+ **
+ ** \param pin  Can be every GPIO pin  
+ **             for example 0,1, 2, ... 49
+ **
+ ** \returns TRUE if enabled, else FALSE
+ **
+ ******************************************************************************/
+boolean_t ApolloGpio_GpioIsPullupEnabled(apollogpio_gpio_pin_t pin)
+{
+    if (pin > 49) return FALSE;
+    return (APOLLOGPIO_PADREG_GET(pin,GPIO_PADREGA_PAD0PULL_Msk) >> GPIO_PADREGA_PAD0PULL_Pos);
 }
 
 /**
@@ -591,12 +698,30 @@ void ApolloGpio_GpioPullupEnable(apollogpio_gpio_pin_t pin, boolean_t bEnable)
  ******************************************************************************/
 void ApolloGpio_GpioInputEnable(apollogpio_gpio_pin_t pin, boolean_t bEnable)
 {
+    if (pin > 49) return;
     GPIO->PADKEY = 0x00000073;
     APOLLOGPIO_PADREG_WRITE(pin,GPIO_PADREGA_PAD0INPEN_Msk,(bEnable << GPIO_PADREGA_PAD0INPEN_Pos));
     //APOLLOGPIO_CFG_WRITE(pin,GPIO_CFGA_GPIO0INCFG_Msk,(bEnable << GPIO_CFGA_GPIO0INCFG_Pos));
     //ApolloGpio_GpioSelectFunction(pin,3);
     GPIO->PADKEY = 0x00000000;
 }
+
+/**
+ ******************************************************************************
+ ** \brief  Get input-enabled for a specified GPIO
+ **
+ ** \param pin  Can be every GPIO pin  
+ **             for example 0,1, 2, ... 49
+ **
+ ** \returns TRUE if enabled, else FALSE
+ **
+ ******************************************************************************/
+boolean_t ApolloGpio_GpioIsInputEnabled(apollogpio_gpio_pin_t pin)
+{
+    if (pin > 49) return FALSE;
+    return (APOLLOGPIO_PADREG_GET(pin,GPIO_PADREGA_PAD0INPEN_Msk) >> GPIO_PADREGA_PAD0INPEN_Pos);
+}
+
 
 /**
  ******************************************************************************
@@ -610,6 +735,7 @@ void ApolloGpio_GpioInputEnable(apollogpio_gpio_pin_t pin, boolean_t bEnable)
  ******************************************************************************/
 void ApolloGpio_GpioStrengthEnable(apollogpio_gpio_pin_t pin, boolean_t bEnable)
 {
+    if (pin > 49) return;
     GPIO->PADKEY = 0x00000073;
     APOLLOGPIO_PADREG_WRITE(pin,GPIO_PADREGA_PAD0STRNG_Msk,(bEnable << GPIO_PADREGA_PAD0STRNG_Pos));
     GPIO->PADKEY = 0x00000000;
@@ -627,6 +753,7 @@ void ApolloGpio_GpioStrengthEnable(apollogpio_gpio_pin_t pin, boolean_t bEnable)
  ******************************************************************************/
 void ApolloGpio_GpioOutputConfiguration(apollogpio_gpio_pin_t pin, en_apollogpio_mode_t enMode)
 {
+    if (pin > 49) return;
     GPIO->PADKEY = 0x00000073;
     switch(enMode)
     {
@@ -648,6 +775,38 @@ void ApolloGpio_GpioOutputConfiguration(apollogpio_gpio_pin_t pin, en_apollogpio
 
 /**
  ******************************************************************************
+ ** \brief  Get the output configuration for a specified GPIO
+ **
+ ** \param pin  Can be every GPIO pin  
+ **             for example 1, 2, ... 49
+ **
+ ** \return Mode: GpioOutputDisabled, GpioPushPull, GpioOpenDrain, GpioTriState
+ **
+ ******************************************************************************/
+en_apollogpio_mode_t ApolloGpio_GpioGetOutputConfiguration(apollogpio_gpio_pin_t pin)
+{
+    uint8_t u8Mode = APOLLOGPIO_CFG_GET(pin,GPIO_CFGA_GPIO0OUTCFG_Msk) >> GPIO_CFGA_GPIO0OUTCFG_Pos;
+    if (pin > 49) return GpioOutputDisabled;
+    switch(u8Mode)
+    {
+        case 0:
+          return GpioOutputDisabled;
+          break;
+        case 1:
+          return GpioPushPull;
+          break;
+        case 2:
+          return GpioOpenDrain;
+          break;
+        case 3:
+          return GpioTriState;
+          break;
+    }
+    return GpioOutputDisabled;
+}
+
+/**
+ ******************************************************************************
  ** \brief  Enable the output for a specified GPIO
  **
  ** \param pin  Can be every GPIO pin  
@@ -658,6 +817,7 @@ void ApolloGpio_GpioOutputConfiguration(apollogpio_gpio_pin_t pin, en_apollogpio
  ******************************************************************************/
 void ApolloGpio_GpioOutputEnable(apollogpio_gpio_pin_t pin, boolean_t bEnable)
 {
+    if (pin > 49) return;
     if (bEnable)
     {
         //ApolloGpio_GpioSelectFunction(pin,3);
@@ -681,9 +841,26 @@ void ApolloGpio_GpioOutputEnable(apollogpio_gpio_pin_t pin, boolean_t bEnable)
  ******************************************************************************/
 void ApolloGpio_GpioSelectFunction(apollogpio_gpio_pin_t pin, uint8_t u8Function)
 {
+    if (pin > 49) return;
     GPIO->PADKEY = 0x00000073;
     APOLLOGPIO_PADREG_WRITE(pin,GPIO_PADREGA_PAD0FNCSEL_Msk,((u8Function & 0x7) << GPIO_PADREGA_PAD0FNCSEL_Pos));
     GPIO->PADKEY = 0x00000000;
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Get the function for a specified GPIO
+ **
+ ** \param pin  Can be every GPIO pin  
+ **             for example 1, 2, ... 49
+ **
+ ** \return Function 0..7
+ **
+ ******************************************************************************/
+uint8_t ApolloGpio_GpioGetSelectedFunction(apollogpio_gpio_pin_t pin)
+{
+    if (pin > 49) return 255;
+    return (APOLLOGPIO_PADREG_GET(pin,GPIO_PADREGA_PAD0FNCSEL_Msk) >> GPIO_PADREGA_PAD0FNCSEL_Pos);
 }
 
 /**
@@ -698,6 +875,7 @@ void ApolloGpio_GpioSelectFunction(apollogpio_gpio_pin_t pin, uint8_t u8Function
  ******************************************************************************/
 void ApolloGpio_GpioSetHighSwitch(apollogpio_gpio_pin_t pin, boolean_t bOnOff)
 {
+    if (pin > 49) return;
     GPIO->PADKEY = 0x00000073;
     APOLLOGPIO_PADREG_WRITE(pin,(1 << 7),(bOnOff << 7));
     GPIO->PADKEY = 0x00000000;
@@ -715,6 +893,7 @@ void ApolloGpio_GpioSetHighSwitch(apollogpio_gpio_pin_t pin, boolean_t bOnOff)
  ******************************************************************************/
 void ApolloGpio_GpioSelectPullup(apollogpio_gpio_pin_t pin, en_apollogpio_pullup_t enPullUp)
 {
+    if (pin > 49) return;
     GPIO->PADKEY = 0x00000073;
     switch(enPullUp)
     {
@@ -737,7 +916,7 @@ void ApolloGpio_GpioSelectPullup(apollogpio_gpio_pin_t pin, en_apollogpio_pullup
 #if APOLLOGPIO_USE_ARDUINO == 1
 void pinMode(uint8_t pin, uint8_t mode)
 {
-    if (pin > 50) return;
+    if (pin > 49) return;
     ApolloGpio_GpioSelectFunction(pin,3);
     if (mode == INPUT) { 
         ApolloGpio_GpioOutputEnable(pin,FALSE);
@@ -755,7 +934,7 @@ void pinMode(uint8_t pin, uint8_t mode)
 }
 void attachInterrupt(uint8_t interruptNum, void (*userFunc)(void), int mode) 
 {
-   if (interruptNum > 50) return;
+   if (interruptNum > 49) return;
    switch(mode)
    {
        case LOW:

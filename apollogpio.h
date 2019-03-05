@@ -46,6 +46,8 @@ so agrees to indemnify Fujitsu against all liability.
  **                                          now part of the FEEU ClickBeetle(TM) SW Framework
  **   - 2018-10-29  V1.5  Manuel Schreiner   Fixed IRQ handling
  **                                          Added Arduino API, enable via RTE_Device.h APOLLOGPIO_USE_ARDUINO 
+ **   - 2019-03-05  V1.6  Manuel Schrener    Added GPIO number validation
+ **                                          Added function for reading current configuration
  **
  *****************************************************************************/
 #ifndef __APOLLOGPIO_H__
@@ -167,7 +169,7 @@ extern "C"
 //                                                                           |    |
 #define APOLLOGPIO_CFG(n) *(volatile uint32_t*)(((uint32_t)&GPIO->CFGA) + (n/8) * 4)
 
-#define APOLLOGPIO_CFG_GET(n,mask) (APOLLOGPIO_CFG(n) & (mask << (((n) % 8)*4))) >> (((n) % 8)*4))
+#define APOLLOGPIO_CFG_GET(n,mask) ((APOLLOGPIO_CFG(n) & (mask << (((n) % 8)*4))) >> (((n) % 8)*4))
 #define APOLLOGPIO_CFG_SET(n,val) APOLLOGPIO_CFG(n) |= val << (((n) % 8)*4)
 #define APOLLOGPIO_CFG_CLR(n,val) APOLLOGPIO_CFG(n) &= ~(val << (((n) % 8)*4))
 #define APOLLOGPIO_CFG_ZERO(n) APOLLOGPIO_CFG(n) &= ~(0xF << (((n) % 8) * 4))
@@ -190,7 +192,7 @@ extern "C"
 //                                                                                 |    |
 #define APOLLOGPIO_PADREG(n) *(volatile uint32_t*)(((uint32_t)&GPIO->PADREGA) + (n/4) * 4)     
 
-#define APOLLOGPIO_PADREG_GET(n,mask) (APOLLOGPIO_PADREG(n) & (mask << (((n) % 4)*8))) >> (((n) % 4)*8))
+#define APOLLOGPIO_PADREG_GET(n,mask) ((APOLLOGPIO_PADREG(n) & (mask << (((n) % 4)*8))) >> (((n) % 4)*8))
 #define APOLLOGPIO_PADREG_SET(n,val)  APOLLOGPIO_PADREG(n) |= val << (((n) % 4)*8)
 #define APOLLOGPIO_PADREG_CLR(n,val)  APOLLOGPIO_PADREG(n) &= ~(val << (((n) % 4)*8))
 #define APOLLOGPIO_PADREG_ZERO(n) APOLLOGPIO_PADREG(n) &= ~(0xFF << (((n) % 4)*8))
@@ -337,19 +339,35 @@ typedef struct stc_apollogpio_register_mask_pair
 /* Global function prototypes ('extern', definition in C source)             */
 /*****************************************************************************/
 
+
 void ApolloGpio_GpioSet(apollogpio_gpio_pin_t pin, boolean_t bOnOff);
+boolean_t ApolloGpio_GpioGet(apollogpio_gpio_pin_t pin);
+boolean_t ApolloGpio_GpioRead(apollogpio_gpio_pin_t pin);
+void ApolloGpio_GpioWrite(apollogpio_gpio_pin_t pin, boolean_t bOnOff);
+void ApolloGpio_GpioToggle(apollogpio_gpio_pin_t pin);
+
 void ApolloGpio_GpioPullupEnable(apollogpio_gpio_pin_t pin, boolean_t bEnable);
+boolean_t ApolloGpio_GpioIsPullupEnabled(apollogpio_gpio_pin_t pin);
+
 void ApolloGpio_GpioInputEnable(apollogpio_gpio_pin_t pin, boolean_t bEnable);
+boolean_t ApolloGpio_GpioIsInputEnabled(apollogpio_gpio_pin_t pin);
+
 void ApolloGpio_GpioStrengthEnable(apollogpio_gpio_pin_t pin, boolean_t bEnable);
+
 void ApolloGpio_GpioOutputConfiguration(apollogpio_gpio_pin_t pin, en_apollogpio_mode_t enMode);
+en_apollogpio_mode_t ApolloGpio_GpioGetOutputConfiguration(apollogpio_gpio_pin_t pin);
+
 void ApolloGpio_GpioOutputEnable(apollogpio_gpio_pin_t pin, boolean_t bEnable);
+
 void ApolloGpio_GpioSelectFunction(apollogpio_gpio_pin_t pin, uint8_t u8Function);
+uint8_t ApolloGpio_GpioGetSelectedFunction(apollogpio_gpio_pin_t pin);
+
 boolean_t ApolloGpio_IrqIsEnabled(apollogpio_gpio_pin_t pin);
 boolean_t ApolloGpio_IrqIsPending(apollogpio_gpio_pin_t pin);
 boolean_t ApolloGpio_IrqExecute(apollogpio_gpio_pin_t pin);
 void ApolloGpio_RegisterIrq(apollogpio_gpio_pin_t pin, en_apollogpio_edgedetect_t enMode, uint32_t u32Priority, pfn_apollogpio_callback_t pfnCallback);
 void ApolloGpio_UnRegisterIrq(apollogpio_gpio_pin_t pin);
-boolean_t ApolloGpio_GpioGet(apollogpio_gpio_pin_t pin);
+
 void ApolloGpio_GpioSetHighSwitch(apollogpio_gpio_pin_t pin, boolean_t bOnOff);
 void ApolloGpio_GpioSelectPullup(apollogpio_gpio_pin_t pin, en_apollogpio_pullup_t enPullUp);
 #if APOLLOGPIO_USE_ARDUINO == 1
