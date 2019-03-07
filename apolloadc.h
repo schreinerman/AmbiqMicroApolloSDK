@@ -42,6 +42,7 @@ so agrees to indemnify Fujitsu against all liability.
  **   - 2018-07-06  V1.2  Manuel Schreiner   Updated documentation, 
  **                                          now part of the FEEU ClickBeetle(TM) SW Framework
  **   - 2018-08-09  V1.3  Manuel Schreiner   Added support for Apollo3
+ **   - 2019-03-07  V1.4  Manuel Schreiner   Fixed wrong battload setting for Apollo2
  **
  *****************************************************************************/
 #ifndef __APOLLOADC_H__
