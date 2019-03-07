@@ -58,6 +58,7 @@
  **   - 2018-07-24  V1.8  Manuel Schreiner   Updated pin-configuration and status-infomration
  **   - 2019-01-15  V1.9  Manuel Schreiner   Fixed input/output pin configuration setup
  **                                          Added debug tracing
+ **   - 2019-03-07  V2.0  Manuel Schreiner   Fixed not initialized FIFO in extended UART initialization
  **
  *****************************************************************************/
 

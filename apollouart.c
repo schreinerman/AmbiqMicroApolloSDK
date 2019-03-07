@@ -58,6 +58,7 @@
  **   - 2018-07-24  V1.8  Manuel Schreiner   Updated pin-configuration and status-infomration
  **   - 2019-01-15  V1.9  Manuel Schreiner   Fixed input/output pin configuration setup
  **                                          Added debug tracing
+ **   - 2019-03-07  V2.0  Manuel Schreiner   Fixed not initialized FIFO in extended UART initialization
  **
  *****************************************************************************/
 #define __APOLLOUART_C__
@@ -1609,6 +1610,8 @@ void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcCo
         break;
     }
 
+    pstcUart->LCRH_b.FEN = pstcConfig->bEnableFifo;
+
     pstcUart->LCRH_b.BRK = pstcConfig->bEnableBreak;
 
     pstcUart->CR_b.LBE = pstcConfig->bEnableLoopback;
@@ -1616,6 +1619,8 @@ void ApolloUart_InitExtended(UART_Type* pstcUart,stc_apollouart_config_t* pstcCo
     pstcUart->CR_b.RTSEN = pstcConfig->bEnableRts;
 
     pstcUart->CR_b.CTSEN = pstcConfig->bEnableCts;
+
+    
 
     ApolloUart_InitGpios(pstcUart);
 
@@ -1643,7 +1648,7 @@ stc_apollouart_status_t ApolloUart_GetStatus(UART_Type* pstcUart)
     stcStat.bErrorParity = pstcUart->RSR_b.PESTAT;
     stcStat.bErrorFrameing = pstcUart->RSR_b.FESTAT;
     if (pstcUart->FR_b.BUSY != 0) stcStat.bRxBusy = TRUE;
-    if (pstcUart->FR_b.TXFE != 0) stcStat.bTxBusy = TRUE;
+    if ((pstcUart->FR_b.TXFE == 0) || (pstcUart->FR_b.BUSY != 0)) stcStat.bTxBusy = TRUE;
     if (pstcUart->FR_b.RXFE == 0) stcStat.bRxFull = TRUE;
     if (pstcUart->FR_b.TXFF == 0) stcStat.bTxEmpty = TRUE;
     return stcStat;
