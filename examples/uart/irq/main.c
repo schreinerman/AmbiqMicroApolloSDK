@@ -236,6 +236,10 @@ int main(void)
     SysTick_Config(SystemCoreClock / 1000); //setup 1ms SysTick (defined by CMSIS)
 
     //application initialization area
+	
+    IoRingBuffer_Init(&stcRingBufferRx);
+    IoRingBuffer_Init(&stcRingBufferTx);
+	
     ApolloUart_InitExtended(MY_UART,&stcUartConfig);
     ApolloUart_SetRxFifoIrqLevel(MY_UART,ApolloUartFifoIrqLevel87_5);
     ApolloUart_SetTxFifoIrqLevel(MY_UART,ApolloUartFifoIrqLevel87_5);
