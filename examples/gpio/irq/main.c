@@ -108,7 +108,7 @@ void SysTick_Handler(void)
 /**
  *****************************************************************************
  ** 
- **\brief Systick interrupt handler defined by CMSIS
+ **\brief GPIO callback handler
  **
  **\param
  **
