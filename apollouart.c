@@ -59,6 +59,7 @@
  **   - 2019-01-15  V1.9  Manuel Schreiner   Fixed input/output pin configuration setup
  **                                          Added debug tracing
  **   - 2019-03-07  V2.0  Manuel Schreiner   Fixed not initialized FIFO in extended UART initialization
+ **   - 2019-03-12  V2.0a Manuel Schreiner   Added advanced IRQ handling
  **
  *****************************************************************************/
 #define __APOLLOUART_C__
@@ -1767,7 +1768,235 @@ void ApolloUart_InitGpios(UART_Type* pstcUart)
 
 /**
  ******************************************************************************
- ** \brief  Register callbacks
+ ** \brief  Set RX FIFO interrupt level
+ **
+ ** \param  pstcUart         UART pointer
+ **
+ ** \param  enLevel          Level
+ **
+ **
+ *****************************************************************************/
+void ApolloUart_SetRxFifoIrqLevel(UART_Type* pstcUart,en_apollouart_fifo_irq_level_t enLevel)
+{
+    pstcUart->IFLS_b.RXIFLSEL = enLevel;
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Set TX FIFO interrupt level
+ **
+ ** \param  pstcUart         UART pointer
+ **
+ ** \param  enLevel          Level
+ **
+ **
+ *****************************************************************************/
+void ApolloUart_SetTxFifoIrqLevel(UART_Type* pstcUart,en_apollouart_fifo_irq_level_t enLevel)
+{
+    pstcUart->IFLS_b.TXIFLSEL = enLevel;
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Register callback defined in enIrqType
+ **
+ ** \param  pstcUart         UART pointer
+ **
+ ** \param  enIrqType        Callbacktype to register
+ **
+ ** \param  cbCallback       Callback
+ **
+ ** \param  u8Priority       NVIC priority, note this changes priority for all interrupts for this UART handle
+ **
+ *****************************************************************************/
+void ApolloUart_RegisterCallback(UART_Type* pstcUart,en_apollouart_irqtype_t enIrqType,pfn_apollouart_cb_t cbCallback, uint8_t u8Priority)
+{
+    stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
+    if (pstcHandle == NULL) 
+    {
+        UART_ASSERT("ApolloUart_RegisterCallback, no data handle for UART handle found, did you forgot to enable it?\r\n");
+        return;
+    }
+    switch(enIrqType)
+    {
+        case ApolloUartIrqTypeOverrun:
+            if (cbCallback != NULL)
+            {
+                pstcUart->IER_b.OEIM = 1;
+            } else
+            {
+                pstcUart->IER_b.OEIM = 0;
+            }
+            pstcHandle->cbOverrun = cbCallback;
+            break;
+        case ApolloUartIrqTypeBreakError:
+            if (cbCallback != NULL)
+            {
+                pstcUart->IER_b.BEIM = 1;
+            } else
+            {
+                pstcUart->IER_b.BEIM = 0;
+            }
+            pstcHandle->cbBreakError = cbCallback;
+            break;
+        case ApolloUartIrqTypeParityError:
+            if (cbCallback != NULL)
+            {
+                pstcUart->IER_b.PEIM = 1;
+            } else
+            {
+                pstcUart->IER_b.PEIM = 0;
+            }
+            pstcHandle->cbParityError = cbCallback;
+            break;
+        case ApolloUartIrqTypeFramingError:
+            if (cbCallback != NULL)
+            {
+                pstcUart->IER_b.FEIM = 1;
+            } else
+            {
+                pstcUart->IER_b.FEIM = 0;
+            }
+            pstcHandle->cbFramingError = cbCallback;
+            break;
+        case ApolloUartIrqTypeRxTimeout:
+            if (cbCallback != NULL)
+            {
+                pstcUart->IER_b.RTIM = 1;
+            } else
+            {
+                pstcUart->IER_b.RTIM = 0;
+            }
+            pstcHandle->cbRxTimeout = cbCallback;
+            break;
+        case ApolloUartIrqTypeTx:
+            if (cbCallback != NULL)
+            {
+                pstcUart->IER_b.TXIM = 1;
+            } else
+            {
+                pstcUart->IER_b.TXIM = 0;
+            }
+            pstcHandle->cbTx= cbCallback;
+            break;
+        case ApolloUartIrqTypeRx:
+            if (cbCallback != NULL)
+            {
+                pstcUart->IER_b.RXIM = 1;
+            } else
+            {
+                pstcUart->IER_b.RXIM = 0;
+            }
+            pstcHandle->cbRx= cbCallback;
+            break;
+        case ApolloUartIrqTypeDsr:
+            if (cbCallback != NULL)
+            {
+                pstcUart->IER_b.DSRMIM = 1;
+            } else
+            {
+                pstcUart->IER_b.DSRMIM = 0;
+            }
+            pstcHandle->cbDsr = cbCallback;
+            break;
+        case ApolloUartIrqTypeDcd:
+            if (cbCallback != NULL)
+            {
+                pstcUart->IER_b.DCDMIM = 1;
+            } else
+            {
+                pstcUart->IER_b.DCDMIM = 0;
+            }
+            pstcHandle->cbDcd = cbCallback;
+            break;
+        case ApolloUartIrqTypeCts:
+            if (cbCallback != NULL)
+            {
+                pstcUart->IER_b.CTSMIM = 1;
+            } else
+            {
+                pstcUart->IER_b.CTSMIM = 0;
+            }
+            pstcHandle->cbCts = cbCallback;
+            break;
+        #if defined (APOLLO_H) || defined (APOLLO1_H) 
+        case ApolloUartIrqTypeRi:
+            if (cbCallback != NULL)
+            {
+                pstcUart->IER_b.RIMIM = 1;
+            } else
+            {
+                pstcUart->IER_b.RIMIM = 0;
+            }
+            pstcHandle->cbRi = cbCallback;
+            break;
+        #endif
+        #if defined (APOLLO2_H) || defined (APOLLO3_H) 
+        case ApolloUartIrqTypeTxCmp:
+            if (cbCallback != NULL)
+            {
+                pstcUart->IER_b.TXCMPMIM = 1;
+            } else
+            {
+                pstcUart->IER_b.TXCMPMIM = 0;
+            }
+            pstcHandle->cbTxCmp = cbCallback;
+            break;
+        #endif
+        default:
+            return;
+    }
+
+    #if defined(UART) && ((APOLLOUART0_ENABLED == 1) || (APOLLOUART_ENABLED == 1))
+    if (pstcUart == UART)
+    {
+        if (pstcUart->IER == 0)
+        {
+            NVIC_ClearPendingIRQ(UART_IRQn);    //clear pending flag for UART
+            NVIC_DisableIRQ(UART_IRQn);         //disable IRQ
+        } else
+        {
+            NVIC_ClearPendingIRQ(UART_IRQn);    //clear pending flag for UART
+            NVIC_EnableIRQ(UART_IRQn);          //enable IRQ
+            NVIC_SetPriority(UART_IRQn,u8Priority);      //set priority of UART IRQ, smaller value means higher priority
+        }
+    }
+    #endif
+    #if defined(UART0) && (APOLLOUART0_ENABLED == 1)
+    if (pstcUart == UART0)
+    {
+        if (pstcUart->IER == 0)
+        {
+            NVIC_ClearPendingIRQ(UART0_IRQn);    //clear pending flag for UART
+            NVIC_DisableIRQ(UART0_IRQn);         //disable IRQ
+        } else
+        {
+            NVIC_ClearPendingIRQ(UART0_IRQn);    //clear pending flag for UART
+            NVIC_EnableIRQ(UART0_IRQn);          //enable IRQ
+            NVIC_SetPriority(UART0_IRQn,u8Priority);      //set priority of UART IRQ, smaller value means higher priority
+        }
+    }
+    #endif
+    #if defined(UART1) && (APOLLOUART1_ENABLED == 1)
+    if (pstcUart == UART1)
+    {
+        if (pstcUart->IER == 0)
+        {
+            NVIC_ClearPendingIRQ(UART1_IRQn);    //clear pending flag for UART
+            NVIC_DisableIRQ(UART1_IRQn);         //disable IRQ
+        } else
+        {
+            NVIC_ClearPendingIRQ(UART1_IRQn);    //clear pending flag for UART
+            NVIC_EnableIRQ(UART1_IRQn);          //enable IRQ
+            NVIC_SetPriority(UART1_IRQn,u8Priority);      //set priority of UART IRQ, smaller value means higher priority
+        }
+    }
+    #endif
+}
+
+/**
+ ******************************************************************************
+ ** \brief  Simple register callbacks for RX, TX only
  **
  ** \param  pstcUart         UART pointer
  **
@@ -1775,8 +2004,10 @@ void ApolloUart_InitGpios(UART_Type* pstcUart)
  **
  ** \param  cbRx             Callback after data was received
  **
+ ** \param  u8Priority       NVIC priority, note this changes priority for all interrupts for this UART handle
+ **
  *****************************************************************************/
-void ApolloUart_RegisterCallbacks(UART_Type* pstcUart,pfn_apollouart_txnext_t cbTxNext, pfn_apollouart_rx_t cbRx)
+void ApolloUart_RegisterCallbacks(UART_Type* pstcUart,pfn_apollouart_txnext_t cbTxNext, pfn_apollouart_rx_t cbRx, uint8_t u8Priority)
 {
     stc_apollouart_intern_data_t* pstcHandle = GetInternDataPtr(pstcUart);
     if (pstcHandle == NULL) 
@@ -1785,15 +2016,15 @@ void ApolloUart_RegisterCallbacks(UART_Type* pstcUart,pfn_apollouart_txnext_t cb
         return;
     }
     pstcHandle->cbTxNext = cbTxNext;
-    pstcHandle->cbRx = cbRx;
-    if (cbTxNext != NULL)
+    pstcHandle->cbRxSimple = cbRx;
+    if ((cbTxNext != NULL) ||  (pstcHandle->cbTx != NULL))
     {
         pstcUart->IER_b.TXIM = 1;
     } else
     {
         pstcUart->IER_b.TXIM = 0;
     }
-    if (cbRx != NULL)
+    if ((cbRx != NULL) || (pstcHandle->cbRx != NULL))
     {
         pstcUart->IER_b.RXIM = 1;
     } else
@@ -1803,7 +2034,7 @@ void ApolloUart_RegisterCallbacks(UART_Type* pstcUart,pfn_apollouart_txnext_t cb
     #if defined(UART) && ((APOLLOUART0_ENABLED == 1) || (APOLLOUART_ENABLED == 1))
     if (pstcUart == UART)
     {
-        if ((cbTxNext == NULL) && (cbRx == NULL))
+        if (pstcUart->IER == 0)
         {
             NVIC_ClearPendingIRQ(UART_IRQn);    //clear pending flag for UART
             NVIC_DisableIRQ(UART_IRQn);         //disable IRQ
@@ -1811,14 +2042,14 @@ void ApolloUart_RegisterCallbacks(UART_Type* pstcUart,pfn_apollouart_txnext_t cb
         {
             NVIC_ClearPendingIRQ(UART_IRQn);    //clear pending flag for UART
             NVIC_EnableIRQ(UART_IRQn);          //enable IRQ
-            NVIC_SetPriority(UART_IRQn,1);      //set priority of UART IRQ, smaller value means higher priority
+            NVIC_SetPriority(UART_IRQn,u8Priority);      //set priority of UART IRQ, smaller value means higher priority
         }
     }
     #endif
     #if defined(UART0) && (APOLLOUART0_ENABLED == 1)
     if (pstcUart == UART0)
     {
-        if ((cbTxNext == NULL) && (cbRx == NULL))
+        if (pstcUart->IER == 0)
         {
             NVIC_ClearPendingIRQ(UART0_IRQn);    //clear pending flag for UART
             NVIC_DisableIRQ(UART0_IRQn);         //disable IRQ
@@ -1826,14 +2057,14 @@ void ApolloUart_RegisterCallbacks(UART_Type* pstcUart,pfn_apollouart_txnext_t cb
         {
             NVIC_ClearPendingIRQ(UART0_IRQn);    //clear pending flag for UART
             NVIC_EnableIRQ(UART0_IRQn);          //enable IRQ
-            NVIC_SetPriority(UART0_IRQn,1);      //set priority of UART IRQ, smaller value means higher priority
+            NVIC_SetPriority(UART0_IRQn,u8Priority);      //set priority of UART IRQ, smaller value means higher priority
         }
     }
     #endif
     #if defined(UART1) && (APOLLOUART1_ENABLED == 1)
     if (pstcUart == UART1)
     {
-        if ((cbTxNext == NULL) && (cbRx == NULL))
+        if (pstcUart->IER == 0)
         {
             NVIC_ClearPendingIRQ(UART1_IRQn);    //clear pending flag for UART
             NVIC_DisableIRQ(UART1_IRQn);         //disable IRQ
@@ -1841,7 +2072,7 @@ void ApolloUart_RegisterCallbacks(UART_Type* pstcUart,pfn_apollouart_txnext_t cb
         {
             NVIC_ClearPendingIRQ(UART1_IRQn);    //clear pending flag for UART
             NVIC_EnableIRQ(UART1_IRQn);          //enable IRQ
-            NVIC_SetPriority(UART1_IRQn,1);      //set priority of UART IRQ, smaller value means higher priority
+            NVIC_SetPriority(UART1_IRQn,u8Priority);      //set priority of UART IRQ, smaller value means higher priority
         }
     }
     #endif
@@ -1998,7 +2229,7 @@ boolean_t ApolloUart_NewTxDataEnabled(UART_Type* pstcUart)
  ** \brief  IRQ handler
  **
  *****************************************************************************/
-#if defined(UART) && ((APOLLOUART0_ENABLED == 1) || (APOLLOUART_ENABLED == 1))
+#if defined(UART) && ((APOLLOUART0_ENABLED == 1) || (APOLLOUART_ENABLED == 1)) && ((APOLLOUART_IRQ_ENABLED == 1) || (APOLLOUART0_IRQ_ENABLED == 1))
 /**
  ******************************************************************************
  ** \brief  IRQ handler UART (Apollo 1)
@@ -2010,7 +2241,7 @@ void UART_IRQHandler(void)
 }
 #endif
 
-#if defined(UART0) && (APOLLOUART0_ENABLED == 1)
+#if defined(UART0) && (APOLLOUART0_ENABLED == 1) && (APOLLOUART0_IRQ_ENABLED == 1)
 /**
  ******************************************************************************
  ** \brief  IRQ handler UART0
@@ -2022,7 +2253,7 @@ void UART0_IRQHandler(void)
 }
 #endif
 
-#if defined(UART1) && (APOLLOUART1_ENABLED == 1)
+#if defined(UART1) && (APOLLOUART1_ENABLED == 1) && (APOLLOUART1_IRQ_ENABLED == 1)
 /**
  ******************************************************************************
  ** \brief  IRQ handler UART1
@@ -2048,19 +2279,64 @@ void ApolloUart_UARTn_IRQHandler(UART_Type* pstcUart)
     stc_apollouart_intern_data_t* pstcHandle;
     pstcHandle = GetInternDataPtr(pstcUart);
     u32Status = pstcUart->IES;
-    if (pstcUart->IES_b.RXRIS)
+    if (pstcUart->IES_b.OERIS)
     {
-        if (pstcHandle->cbRx != NULL)
+        if (pstcHandle->cbOverrun != NULL)
         {
-            pstcHandle->cbRx(pstcUart->DR);
+            pstcHandle->cbOverrun(pstcUart);
         }
-        pstcUart->IEC_b.RXIC = 1;
-        u32Status &= ~(1 << 4);
+        pstcUart->IEC_b.OEIC = 1;
+        u32Status &= ~(UART_IES_OERIS_Msk);
     }
+
+    if (pstcUart->IES_b.BERIS)
+    {
+        if (pstcHandle->cbBreakError != NULL)
+        {
+            pstcHandle->cbBreakError(pstcUart);
+        }
+        pstcUart->IEC_b.BEIC = 1;
+        u32Status &= ~(UART_IES_BERIS_Msk);
+    }
+
+    if (pstcUart->IES_b.PERIS)
+    {
+        if (pstcHandle->cbParityError != NULL)
+        {
+            pstcHandle->cbParityError(pstcUart);
+        }
+        pstcUart->IEC_b.PEIC = 1;
+        u32Status &= ~(UART_IES_PERIS_Msk);
+    }
+
+    if (pstcUart->IES_b.FERIS)
+    {
+        if (pstcHandle->cbFramingError != NULL)
+        {
+            pstcHandle->cbFramingError(pstcUart);
+        }
+        pstcUart->IEC_b.FEIC = 1;
+        u32Status &= ~(UART_IES_FERIS_Msk);
+    }
+
+    if (pstcUart->IES_b.RTRIS)
+    {
+        if (pstcHandle->cbRxTimeout != NULL)
+        {
+            pstcHandle->cbRxTimeout(pstcUart);
+        }
+        pstcUart->IEC_b.RTIC = 1;
+        u32Status &= ~(UART_IES_RTRIS_Msk);
+    }
+
     if (pstcUart->IES_b.TXRIS)
     {
         pstcUart->IEC_b.TXIC = 1;
-        u32Status &= ~(1 << 5);
+        u32Status &= ~(UART_IES_TXRIS_Msk);
+        if (pstcHandle->cbTx != NULL)
+        {
+            pstcHandle->cbTx(pstcUart);
+        }
         if (pstcHandle->cbTxNext != NULL)
         {
             i16ret = pstcHandle->cbTxNext();
@@ -2073,6 +2349,66 @@ void ApolloUart_UARTn_IRQHandler(UART_Type* pstcUart)
                 pstcUart->DR = (uint8_t)i16ret;
             }
         }
+    }
+
+    if (pstcUart->IES_b.RXRIS)
+    {
+        if (pstcHandle->cbRxSimple != NULL)
+        {
+            pstcHandle->cbRxSimple(pstcUart->DR);
+        }
+        if (pstcHandle->cbRx != NULL)
+        {
+            pstcHandle->cbRx(pstcUart);
+        }
+        pstcUart->IEC_b.RXIC = 1;
+        u32Status &= ~(UART_IES_RXRIS_Msk);
+    }
+
+    if (pstcUart->IES_b.DSRMRIS)
+    {
+        if (pstcHandle->cbDsr != NULL)
+        {
+            pstcHandle->cbDsr(pstcUart);
+        }
+        pstcUart->IEC_b.DSRMIC= 1;
+        u32Status &= ~(UART_IES_DSRMRIS_Msk);
+    }
+
+    if (pstcUart->IES_b.DCDMRIS)
+    {
+        if (pstcHandle->cbDcd != NULL)
+        {
+            pstcHandle->cbDcd(pstcUart);
+        }
+        pstcUart->IEC_b.DCDMIC= 1;
+        u32Status &= ~(UART_IES_DCDMRIS_Msk);
+    }
+
+    if (pstcUart->IES_b.CTSMRIS)
+    {
+        if (pstcHandle->cbCts != NULL)
+        {
+            pstcHandle->cbCts(pstcUart);
+        }
+        pstcUart->IEC_b.CTSMIC= 1;
+        u32Status &= ~(UART_IES_CTSMRIS_Msk);
+    }
+    if (pstcUart->IES & 0x1)
+    {
+        #if defined (APOLLO_H) || defined (APOLLO1_H) 
+            if (pstcHandle->cbRi != NULL)
+            {
+                pstcHandle->cbRi(pstcUart);
+            }
+        #else
+            if (pstcHandle->cbTxCmp != NULL)
+            {
+                pstcHandle->cbTxCmp(pstcUart);
+            }
+        #endif
+        pstcUart->IEC = 0x1;
+        u32Status &= ~(0x1);
     }
 
     //clear all other interrupts

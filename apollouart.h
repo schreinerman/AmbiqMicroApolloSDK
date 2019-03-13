@@ -59,6 +59,7 @@
  **   - 2019-01-15  V1.9  Manuel Schreiner   Fixed input/output pin configuration setup
  **                                          Added debug tracing
  **   - 2019-03-07  V2.0  Manuel Schreiner   Fixed not initialized FIFO in extended UART initialization
+ **   - 2019-03-12  V2.0a Manuel Schreiner   Added advanced IRQ handling
  **
  *****************************************************************************/
 
@@ -572,15 +573,35 @@ extern "C"
 typedef int16_t (*pfn_apollouart_txnext_t) (void);
 typedef void (*pfn_apollouart_rx_t)(int16_t);
 
+
 #if defined(APOLLO2_H) || defined(APOLLO3_H)
 typedef UART0_Type UART_Type;
 #endif
+
+typedef void (*pfn_apollouart_cb_t)(UART_Type* pstcUart);
 
 /// ApolloUart module internal data
 typedef struct stc_apollouart_intern_data
 {
     pfn_apollouart_txnext_t cbTxNext;
-    pfn_apollouart_rx_t cbRx;   
+    pfn_apollouart_rx_t cbRxSimple;
+    pfn_apollouart_cb_t cbOverrun;
+    pfn_apollouart_cb_t cbBreakError;
+    pfn_apollouart_cb_t cbParityError;
+    pfn_apollouart_cb_t cbFramingError;
+    pfn_apollouart_cb_t cbRxTimeout;
+    pfn_apollouart_cb_t cbTx;
+    pfn_apollouart_cb_t cbRx;
+    pfn_apollouart_cb_t cbDsr;
+    pfn_apollouart_cb_t cbDcd;
+    pfn_apollouart_cb_t cbCts;
+    #if defined (APOLLO_H) || defined (APOLLO1_H) 
+    pfn_apollouart_cb_t cbRi;
+    #endif
+    #if defined (APOLLO2_H) || defined (APOLLO3_H) 
+    pfn_apollouart_cb_t cbTxCmp;
+    #endif
+
     boolean_t bInitialized;
     boolean_t bRxEnabled;
     boolean_t bTxEnabled;
@@ -678,6 +699,35 @@ typedef struct stc_apollouart_status
     uint32_t Reserved       : 21;
 } stc_apollouart_status_t;
 
+typedef enum en_apollouart_fifo_irq_level
+{
+    ApolloUartFifoIrqLevel12_5 = 0,
+    ApolloUartFifoIrqLevel25 = 1,
+    ApolloUartFifoIrqLevel50 = 2,
+    ApolloUartFifoIrqLevel75 = 3,
+    ApolloUartFifoIrqLevel87_5 = 4,
+
+} en_apollouart_fifo_irq_level_t;
+
+typedef enum en_apollouart_irqtype
+{
+    ApolloUartIrqTypeOverrun,
+    ApolloUartIrqTypeBreakError,
+    ApolloUartIrqTypeParityError,
+    ApolloUartIrqTypeFramingError,
+    ApolloUartIrqTypeRxTimeout,
+    ApolloUartIrqTypeTx,
+    ApolloUartIrqTypeRx,
+    ApolloUartIrqTypeDsr,
+    ApolloUartIrqTypeDcd,
+    ApolloUartIrqTypeCts,
+    #if defined (APOLLO_H) || defined (APOLLO1_H) 
+    ApolloUartIrqTypeRi,
+    #endif
+    #if defined (APOLLO2_H) || defined (APOLLO3_H) 
+    ApolloUartIrqTypeTxCmp,
+    #endif
+} en_apollouart_irqtype_t;
 
 /// ApolloUart module internal data, storing internal information for each UART instance.
 typedef struct stc_apollouart_instance_data
@@ -716,7 +766,10 @@ void ApolloUart_PutString(UART_Type* pstcUart, char_t *pu8Buffer);
 uint8_t ApolloUart_GetChar(UART_Type* pstcUart);
 boolean_t ApolloUart_HasChar(UART_Type* pstcUart);
 stc_apollouart_status_t ApolloUart_GetStatus(UART_Type* pstcUart);
-void ApolloUart_RegisterCallbacks(UART_Type* pstcUart,pfn_apollouart_txnext_t cbTxNext, pfn_apollouart_rx_t cbRx);
+void ApolloUart_SetRxFifoIrqLevel(UART_Type* pstcUart,en_apollouart_fifo_irq_level_t enLevel);
+void ApolloUart_SetTxFifoIrqLevel(UART_Type* pstcUart,en_apollouart_fifo_irq_level_t enLevel);
+void ApolloUart_RegisterCallback(UART_Type* pstcUart,en_apollouart_irqtype_t enIrqType,pfn_apollouart_cb_t cbCallback, uint8_t u8Priority);
+void ApolloUart_RegisterCallbacks(UART_Type* pstcUart,pfn_apollouart_txnext_t cbTxNext, pfn_apollouart_rx_t cbRx, uint8_t u8Priority);
 void ApolloUart_NewTxData(UART_Type* pstcUart);
 boolean_t ApolloUart_NewTxDataEnabled(UART_Type* pstcUart);
 void ApolloUart_Deinit(void);
