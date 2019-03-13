@@ -56,7 +56,6 @@ so agrees to indemnify Fujitsu against all liability.
 
 #define UART_PRIO  1
 #define MY_UART    UART0
-#define MAX_FIFO   32
 
 /*****************************************************************************/
 /* Global variable definitions (declared in header file with 'extern')       */
@@ -84,7 +83,7 @@ stc_apollouart_config_t stcUartConfig =
     ApolloUartParityNone, //en_apollouart_parity_t enParity;
     FALSE,                //uint32_t bEnableBreak       : 1;
     FALSE,                //uint32_t bEnableLoopback    : 1;
-    TRUE,                 //uint32_t bEnableFifo        : 1;
+    FALSE,                //uint32_t bEnableFifo        : 1;
     TRUE,                 //uint32_t bEnableRx          : 1;
     TRUE,                 //uint32_t bEnableTx          : 1;
     FALSE,                //uint32_t bEnableCts         : 1;
@@ -150,25 +149,13 @@ void SysTick_Handler(void)
  ** 
  **\brief RX callback
  **
- **\param pstcUart UART handle
+ **\param i16Data Data received
  **
  *****************************************************************************/
-void RxCallback(UART_Type* pstcUart)
+void RxCallback(int16_t i16Data)
 {
-   static uint8_t au8Buffer[MAX_FIFO];
-   static int i;
-   for(i = 0; i < sizeof(au8Buffer);i++)
-   {
-       if (ApolloUart_HasChar(pstcUart))
-       {
-           au8Buffer[i] = ApolloUart_GetChar(pstcUart);
-       }
-       else
-       {
-           break;
-       }
-   }
-   IoRingBuffer_Add(&stcRingBufferRx,&au8Buffer[0],i,NULL);
+   uint8_t u8Temp = i16Data;
+   IoRingBuffer_Add(&stcRingBufferRx,&u8Temp,1,NULL);
 }
 
 /**
@@ -176,33 +163,25 @@ void RxCallback(UART_Type* pstcUart)
  ** 
  **\brief TX callback
  **
- **\param pstcUart UART handle
+ **\return data or -1 on no more data
  **
  *****************************************************************************/
-void TxCallback(UART_Type* pstcUart)
+int16_t TxNext(void)
 {
    static int i;
    static uint8_t u8Tmp;
    static uint32_t u32Read;
-   for(i = 0; i < MAX_FIFO;i++)
+   IoRingBuffer_Read(&stcRingBufferTx,&u8Tmp,1,&u32Read,NULL);
+   if (u32Read == 0)
    {
-       if (ApolloUart_GetStatus(pstcUart).bTxEmpty == TRUE)
-       {
-           IoRingBuffer_Read(&stcRingBufferTx,&u8Tmp,1,&u32Read,NULL);
-           if (u32Read == 0)
-           {
-               ApolloUart_RegisterCallback(pstcUart,ApolloUartIrqTypeTx,NULL,UART_PRIO);
-               bTxEnabled = FALSE;
-               return;
-           }
-           ApolloUart_PutChar(pstcUart,u8Tmp);
-       }
-       else
-       {
-           break;
-       }
+       return -1;
+   }
+   else
+   {
+       return u8Tmp;
    }
 }
+
 
 /**
  *****************************************************************************
@@ -215,11 +194,9 @@ void TxCallback(UART_Type* pstcUart)
 void MyPutString(char_t* myString)
 {
     IoRingBuffer_Add(&stcRingBufferTx,myString,strlen(myString),NULL);
-    if (bTxEnabled == FALSE)
+    if (ApolloUart_NewTxDataEnabled(MY_UART) == FALSE)
     {
-        ApolloUart_RegisterCallback(MY_UART,ApolloUartIrqTypeTx,TxCallback,UART_PRIO);
-        TxCallback(MY_UART);
-        bTxEnabled = TRUE;
+        ApolloUart_NewTxData(MY_UART);
     }
 }
 
@@ -236,16 +213,15 @@ int main(void)
     SysTick_Config(SystemCoreClock / 1000); //setup 1ms SysTick (defined by CMSIS)
 
     //application initialization area
-	
+
     IoRingBuffer_Init(&stcRingBufferRx);
     IoRingBuffer_Init(&stcRingBufferTx);
-	
+
     ApolloUart_InitExtended(MY_UART,&stcUartConfig);
-    ApolloUart_SetRxFifoIrqLevel(MY_UART,ApolloUartFifoIrqLevel87_5);
-    ApolloUart_SetTxFifoIrqLevel(MY_UART,ApolloUartFifoIrqLevel87_5);
-    ApolloUart_RegisterCallback(MY_UART,ApolloUartIrqTypeRx,RxCallback,UART_PRIO);
-    MyPutString("This is an ultra long string that is handled via IRQ and FIFO in \"background\" and can be much longer...\r\n");
-    
+
+    ApolloUart_RegisterCallbacks(MY_UART,TxNext,RxCallback,UART_PRIO);
+    ApolloUart_NewTxData(MY_UART);
+    MyPutString("This is an ultra long string that is handled via IRQ in \"background\" and can be much longer...\r\n");
     while(1)
     {
         //application code
