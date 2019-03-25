@@ -55,6 +55,10 @@ so agrees to indemnify Fujitsu against all liability.
 **   - 2019-01-10  v1.7f Manuel Schreiner   Added CS configuration and Debug information
 **   - 2019-01-23  v1.8  Manuel Schreiner   Updated for Apollo1 usage
 **   - 2019-03-04  v1.9  Manuel Schreiner   Added better timeout handling
+**   - 2019-03-25  V2.0  Manuel Schreiner   Added __APOLLOIOM_VERSION__ and __APOLLOIOM_DATE__ defines
+**                                          Fixed uninitialized bytes written / bytes read
+**                                          Added preliminary full-duplex support for Apollo2 / Apollo3Blue SPI
+**                                          Disabling fullduplex for I2C
 **
 *****************************************************************************/
 #define __APOLLOIOM_C__
@@ -107,7 +111,7 @@ so agrees to indemnify Fujitsu against all liability.
 #if defined(APOLLO_H) || defined(APOLLO1_H) 
 #define MAX_FIFO_SIZE  64
 #elif defined(APOLLO2_H) 
-#define MAX_FIFO_SIZE  64
+#define MAX_FIFO_SIZE  128
 #elif defined(APOLLO3_H) 
 #define MAX_FIFO_SIZE  32
 #endif
@@ -217,6 +221,7 @@ static void IomDebug_PrintHandleName(IOMSTR0_Type* pstcHandle);
 static void IomDebug_GpioUsage(uint8_t u8Gpio);
 #endif
 static stc_apolloiom_intern_data_t* GetInternDataPtr(IOMSTR0_Type* pstcIf);
+static en_result_t WaitSclGetsHigh(IOMSTR0_Type* pstcHandle);
 static boolean_t onebit(uint32_t u32Value);
 static uint32_t compute_freq(uint32_t u32Fsel, uint32_t u32Div3, uint32_t u32DivEn, uint32_t u32TotPer);
 static en_result_t ApolloIOM_GetClockCfg(uint32_t u32Frequency, uint32_t* pu32RealFrequency, uint32_t* pu32ClkCfg, boolean_t bPhase);
@@ -228,6 +233,7 @@ static uint32_t FifoToData(IOMSTR0_Type* pstcHandle, uint8_t* pu8Data, uint32_t 
 /*****************************************************************************/
 
 #if IOM_DEBUG == 1
+
 static void IomDebug_GpioUsage(uint8_t u8Gpio)
 {
     if (u8Gpio < 50)
@@ -301,6 +307,100 @@ static stc_apolloiom_intern_data_t* GetInternDataPtr(IOMSTR0_Type* pstcHandle)
     }
 
     return NULL;
+}
+
+/**
+******************************************************************************
+** \brief  Checks and waits for the SCL line to be high
+**         This is to ensure clock hi time specs are not violated in case slave did
+**         clock stretching in previous transaction
+**
+** \param pstcHandle      IOM handle: IOMSTR0 or IOMSTR1 for Apollo, IOMSTR1..5 for Apollo 2
+**
+******************************************************************************/
+static en_result_t WaitSclGetsHigh(IOMSTR0_Type* pstcHandle)
+{
+    volatile uint32_t u32Delay;
+    uint32_t i;
+    stc_apolloiom_intern_data_t* pstcData;
+    volatile uint32_t u32Timeout;
+
+    if (pstcHandle == NULL) 
+    {
+        IOM_ASSERT("WaitSclGetsHigh, pstcHandle is NULL\r\n");
+        return ErrorInvalidParameter;
+    }
+
+    pstcData = GetInternDataPtr(pstcHandle);
+
+    if (pstcData == NULL) 
+    {
+        IOM_ASSERT("WaitSclGetsHigh, no data-handle found for your handle, did you forgot to enable it in RTE_Device.h?\r\n");
+        return Error;
+    }
+    if (pstcData->enInterfaceMode != IomInterfaceModeI2C)
+    {
+        IOM_ASSERT("WaitSclGetsHigh, Interface mode must be I2C!\r\n");
+        return Error;
+    }
+
+    ApolloGpio_GpioInputEnable(pstcData->stcGpios.u8SclPin,TRUE);
+   
+    SystemCoreClockUpdate();
+    u32Timeout = compute_freq( pstcHandle->CLKCFG_b.FSEL, pstcHandle->CLKCFG_b.DIV3,  pstcHandle->CLKCFG_b.DIVEN, pstcHandle->CLKCFG_b.TOTPER);
+    u32Timeout = u32Timeout / ((MAX_FIFO_SIZE + 5) * 8);
+    u32Timeout = (SystemCoreClock / u32Timeout);
+    while(u32Timeout > 0)
+    {
+        u32Timeout--;
+        if (ApolloGpio_GpioGet(pstcData->stcGpios.u8SclPin) == 1) 
+        {
+            break;
+        }
+    }
+    if (u32Timeout == 0)
+    {
+        return ErrorTimeout;
+    }
+
+    
+    for (i = 0; i < IOMGPIOS_COUNT;i++)
+    {
+        if ((pstcHandle == stcIomGpios[i].pstcHandle) && (pstcData->stcGpios.u8SclPin == stcIomGpios[i].stcGpios.u8SclPin))
+        {
+            ApolloGpio_GpioSelectFunction(pstcData->stcGpios.u8SclPin,stcIomGpios[i].u8FunctionI2C);
+        }
+    }
+
+    return Ok;
+}
+
+/**
+******************************************************************************
+** \brief Wait ready timeout procedure
+**
+** \param pstcHandle  Pointer to instance
+**
+** \return Ok if no timeout happened or ErrorTimeout on timeout error
+**
+******************************************************************************/
+static en_result_t WaitReadyTimeout(IOMSTR0_Type* pstcHandle)
+{
+    volatile uint32_t u32Timeout;
+    SystemCoreClockUpdate();
+    u32Timeout = compute_freq( pstcHandle->CLKCFG_b.FSEL, pstcHandle->CLKCFG_b.DIV3,  pstcHandle->CLKCFG_b.DIVEN, pstcHandle->CLKCFG_b.TOTPER);
+    u32Timeout = u32Timeout / ((MAX_FIFO_SIZE + 5) * 8);
+    u32Timeout = (SystemCoreClock / u32Timeout);
+    while(u32Timeout > 0)
+    {
+        u32Timeout--;
+        if ((pstcHandle->STATUS_b.IDLEST == 1) && (pstcHandle->STATUS_b.CMDACT == 0)) break;
+    }
+    if (u32Timeout == 0)
+    {
+        return ErrorTimeout;
+    }
+    return Ok;
 }
 
 /**
@@ -1187,7 +1287,6 @@ en_result_t ApolloIOM_Enable(IOMSTR0_Type* pstcHandle)
 ******************************************************************************/
 en_result_t ApolloIOM_Disable(IOMSTR0_Type* pstcHandle)
 {
-    volatile uint32_t u32Timeout;
     en_result_t enRes = Error;
     stc_apolloiom_intern_data_t* pstcData;
     if (pstcHandle == NULL) 
@@ -1217,16 +1316,7 @@ en_result_t ApolloIOM_Disable(IOMSTR0_Type* pstcHandle)
 #endif
     {
         //Poll for IOM had completed the operation
-
-        u32Timeout = compute_freq( pstcHandle->CLKCFG_b.FSEL, pstcHandle->CLKCFG_b.DIV3,  pstcHandle->CLKCFG_b.DIVEN, pstcHandle->CLKCFG_b.TOTPER);
-        u32Timeout = u32Timeout / ((MAX_FIFO_SIZE + 5) * 8);
-        u32Timeout = (SystemCoreClock / u32Timeout) / 5;
-        while(u32Timeout > 0)
-        {
-            u32Timeout--;
-            if (pstcHandle->STATUS_b.IDLEST == 1) break;
-        }
-        if (u32Timeout == 0) 
+        if (WaitReadyTimeout(pstcHandle) != Ok) 
         {
             IOM_ASSERT("ApolloIOM_Disable, waiting IOM to be finished timed-out\r\n");
             return ErrorTimeout;
@@ -1693,7 +1783,7 @@ en_result_t ApolloIOM_Configure(IOMSTR0_Type* pstcHandle, const stc_apolloiom_co
     }
 
     #if defined(APOLLO2_H)
-        if (pstcConfig->bFullDuplex == TRUE)
+        if ((pstcConfig->bFullDuplex == TRUE) && (pstcConfig->enInterfaceMode == IomInterfaceModeSpi))
         {
             u32Config |= (1 << IOMSTR0_CFG_FULLDUP_Pos);
         }
@@ -1712,7 +1802,7 @@ en_result_t ApolloIOM_Configure(IOMSTR0_Type* pstcHandle, const stc_apolloiom_co
     #if defined(APOLLO2_H)
     // Apply I2C clock stretching workaround if B2 silicon and IOM 1,2,3, or 5
     // only 100KHz, 200KHz, 400KHz and 800KHz supported
-    if (((MCUCTRL->CHIPREV & 0xFF) == 0x22) && ((pstcHandle == IOM1) || 
+    if (((pstcConfig->enInterfaceMode == IomInterfaceModeI2C) && (MCUCTRL->CHIPREV & 0xFF) == 0x22) && ((pstcHandle == IOM1) || 
         (pstcHandle == IOM2) || 
         (pstcHandle == IOM3) ||  
         (pstcHandle == IOM5)))
@@ -1833,6 +1923,7 @@ en_result_t ApolloIOM_Configure(IOMSTR0_Type* pstcHandle, const stc_apolloiom_co
 
 #endif
     #if IOM_DEBUG == 1
+        IOM_DEBUG_PRINTLN("ApolloIOM Driver V%d %s",__APOLLOIOM_VERSION__,__APOLLOGPIO_DATE__);
         IOM_DEBUG_PRINTLN("ApolloIOM_Configure, config done:");
         IOM_DEBUG_PRINT("  - ");
         IomDebug_PrintHandleName(pstcHandle);
@@ -2021,6 +2112,8 @@ en_result_t ApolloIom_I2cCommand(IOMSTR0_Type* pstcHandle, uint32_t u32Operation
     //
     u32Command |= u32Options & 0x5C00FF00;
 
+    WaitSclGetsHigh(pstcHandle);
+
     //
     // Write the complete command word to the IOM command register.
     //
@@ -2078,6 +2171,9 @@ en_result_t ApolloIom_I2cBusReset(IOMSTR0_Type* pstcHandle)
     volatile uint32_t u32Delay;
     uint32_t i;
     stc_apolloiom_intern_data_t* pstcData;
+
+    SystemCoreClockUpdate();
+
     if (pstcHandle == NULL) 
     {
         IOM_ASSERT("ApolloIom_I2cBusReset, pstcHandle is NULL\r\n");
@@ -2115,24 +2211,39 @@ en_result_t ApolloIom_I2cBusReset(IOMSTR0_Type* pstcHandle)
 
         for (i=0; i<9; i++)
         {
-            u32Delay = 0xffff;
-            while (--u32Delay);
+            u32Delay = SystemCoreClock / 400000UL / 8;
+            while (u32Delay > 0)
+            {
+                u32Delay--;
+            }
             ApolloGpio_GpioOutputEnable(pstcData->stcGpios.u8SclPin,TRUE);
             ApolloGpio_GpioSet(pstcData->stcGpios.u8SclPin,TRUE);
-            u32Delay = 0xffff;
-            while (--u32Delay);
+            u32Delay = SystemCoreClock / 400000UL / 8;
+            while (u32Delay > 0)
+            {
+                u32Delay--;
+            }
             ApolloGpio_GpioSet(pstcData->stcGpios.u8SclPin,FALSE);
-            if (FALSE == ApolloGpio_GpioGet(pstcData->stcGpios.u8SdaPin)) break;   // stop if SDA was released meanwhile
+            if (FALSE == ApolloGpio_GpioGet(pstcData->stcGpios.u8SdaPin)) 
+            {
+                break;   // stop if SDA was released meanwhile
+            }
         }
     }
-    u32Delay = 0xffff;
-    while (--u32Delay) __NOP();
+    u32Delay = SystemCoreClock / 400000UL / 8;
+    while (u32Delay > 0)
+    {
+        u32Delay--;
+    }
     ApolloGpio_GpioOutputEnable(pstcData->stcGpios.u8SclPin,TRUE);
     ApolloGpio_GpioSet(pstcData->stcGpios.u8SclPin,TRUE);
     ApolloGpio_GpioOutputEnable(pstcData->stcGpios.u8SdaPin,TRUE);
     ApolloGpio_GpioSet(pstcData->stcGpios.u8SdaPin,TRUE);
-    u32Delay = 0xffff;
-    while (--u32Delay)  __NOP();
+    u32Delay = SystemCoreClock / 400000UL / 8;
+    while (u32Delay > 0)
+    {
+        u32Delay--;
+    }
     for (i = 0; i < IOMGPIOS_COUNT;i++)
     {
         if ((pstcHandle == stcIomGpios[i].pstcHandle) && (pstcData->stcGpios.u8SdaPin == stcIomGpios[i].stcGpios.u8SdaPin))
@@ -2168,19 +2279,10 @@ en_result_t ApolloIom_I2cBusReset(IOMSTR0_Type* pstcHandle)
 ******************************************************************************/
 en_result_t ApolloIom_SpiSetCsPolled(IOMSTR0_Type* pstcHandle,uint32_t u32GpioPin, boolean_t bHighLow)
 {
-    uint32_t u32Timeout;
     #if (APOLLOSWSPI_ENABLED == 1)
     if (pstcHandle != IOMSTR_SWSPI) {
     #endif
-        u32Timeout = compute_freq( pstcHandle->CLKCFG_b.FSEL, pstcHandle->CLKCFG_b.DIV3,  pstcHandle->CLKCFG_b.DIVEN, pstcHandle->CLKCFG_b.TOTPER);
-        u32Timeout = u32Timeout / ((MAX_FIFO_SIZE + 5) * 8);
-        u32Timeout = (SystemCoreClock / u32Timeout) / 5;
-        while(u32Timeout > 0)
-        {
-            u32Timeout--;
-            if ((pstcHandle->STATUS_b.IDLEST == 1) && (pstcHandle->STATUS_b.CMDACT == 0)) break;
-        }
-        if (u32Timeout == 0)
+        if (WaitReadyTimeout(pstcHandle) != Ok) 
         {
             IOM_ASSERT("ApolloIom_SpiSetCsPolled, timed-out\r\n");
             return ErrorTimeout;
@@ -2264,7 +2366,6 @@ en_result_t ApolloIom_SpiWritePolled(IOMSTR0_Type* pstcHandle, uint32_t u32ChipS
 en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesWritten, uint32_t u32Options,pfn_apollospi_rxtx_t pfnCallback)
 {
     uint32_t tmp;
-    volatile uint32_t u32Timeout;
     stc_apolloiom_intern_data_t* pstcData;
     uint32_t u32IrqBackup;
     uint32_t i = 0;
@@ -2292,7 +2393,7 @@ en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,
     pstcData->stcBuffer.u32State_b.TX = 1;
 
     if (pu32BytesWritten == NULL) pu32BytesWritten = &tmp;
-
+    *pu32BytesWritten = 0;
 
     #if (APOLLOSWSPI_ENABLED == 1)
        if (pstcHandle == IOMSTR_SWSPI)
@@ -2321,15 +2422,7 @@ en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,
     #endif
 
     //Poll for IOM had completed the operation
-    u32Timeout = compute_freq( pstcHandle->CLKCFG_b.FSEL, pstcHandle->CLKCFG_b.DIV3,  pstcHandle->CLKCFG_b.DIVEN, pstcHandle->CLKCFG_b.TOTPER);
-    u32Timeout = u32Timeout / ((MAX_FIFO_SIZE + 5) * 8);
-    u32Timeout = (SystemCoreClock / u32Timeout) / 5;
-    while(u32Timeout > 0)
-    {
-        u32Timeout--;
-        if ((pstcHandle->STATUS_b.IDLEST == 1) && (pstcHandle->STATUS_b.CMDACT == 0)) break;
-    }
-    if (u32Timeout == 0)
+    if (WaitReadyTimeout(pstcHandle) != Ok) 
     {
         IOM_ASSERT("ApolloIom_SpiWrite, error timed-out\r\n");
         return ErrorTimeout;
@@ -2350,7 +2443,7 @@ en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,
     pstcHandle->INTCLR = 0xFFFFFFFF;
 
 #if defined(APOLLO_H) || defined(APOLLO1_H) || defined(APOLLO2_H)
-    if (u32NumBytes >= pstcHandle->FIFOPTR_b.FIFOREM)
+    if (u32NumBytes > pstcHandle->FIFOPTR_b.FIFOREM)
     {
         IOM_ASSERT("ApolloIom_SpiWrite, The fifo couldn't fit the requested number of bytes\r\n");
         return Error; //The fifo couldn't fit the requested number of bytes
@@ -2367,6 +2460,8 @@ en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,
 
     pstcData->stcBuffer.u32BytesLeft -= u32NumBytes;
     pstcData->stcBuffer.pu8DataPos += u32NumBytes;
+
+    pstcData->stcBuffer.u8LastTransferSize = u32NumBytes;
     ApolloIom_SpiCommand(pstcHandle,AM_HAL_IOM_WRITE,u32ChipSelect,u32NumBytes,u32Options);
 
     *pu32BytesWritten = u32NumBytes;
@@ -2405,13 +2500,14 @@ en_result_t ApolloIom_SpiWrite(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,
 en_result_t ApolloIom_SpiTransfer(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, uint8_t* pu8DataOut, uint8_t* pu8DataIn, uint32_t u32NumBytes, uint32_t* pu32BytesWritten, uint32_t u32Options,pfn_apollospi_rxtx_t pfnCallback)
 {
     #if defined(APOLLO2_H)
-    uint32_t tmp;
+    uint32_t tmp = 0;
     stc_apolloiom_intern_data_t* pstcData;
     #endif
     uint32_t u32IrqBackup;
 
-    volatile uint32_t u32Timeout;
-
+    uint32_t u32ReadLen;
+    uint32_t u32BytesRead;
+    uint32_t len = 0;
     uint32_t i = 0;
     i = i;
 
@@ -2456,7 +2552,7 @@ en_result_t ApolloIom_SpiTransfer(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSele
     pstcData->stcBuffer.u32State_b.RX = 1;
 
     if (pu32BytesWritten == NULL) pu32BytesWritten = &tmp;
-
+    *pu32BytesWritten = 0;
 
     #if (APOLLOSWSPI_ENABLED == 1)
        if (pstcHandle == IOMSTR_SWSPI)
@@ -2485,15 +2581,7 @@ en_result_t ApolloIom_SpiTransfer(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSele
     #endif
 
     //Poll for IOM had completed the operation
-    u32Timeout = compute_freq( pstcHandle->CLKCFG_b.FSEL, pstcHandle->CLKCFG_b.DIV3,  pstcHandle->CLKCFG_b.DIVEN, pstcHandle->CLKCFG_b.TOTPER);
-    u32Timeout = u32Timeout / ((MAX_FIFO_SIZE + 5) * 8);
-    u32Timeout = (SystemCoreClock / u32Timeout) / 5;
-    while(u32Timeout > 0)
-    {
-        u32Timeout--;
-        if ((pstcHandle->STATUS_b.IDLEST == 1) && (pstcHandle->STATUS_b.CMDACT == 0)) break;
-    }
-    if (u32Timeout == 0)
+    if (WaitReadyTimeout(pstcHandle) != Ok) 
     {
         IOM_ASSERT("ApolloIom_SpiTransfer, timed-out\r\n");
         return ErrorTimeout;
@@ -2507,24 +2595,51 @@ en_result_t ApolloIom_SpiTransfer(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSele
         u32NumBytes = (u32NumBytes <= (MAX_FIFO_SIZE/2) ? u32NumBytes : (MAX_FIFO_SIZE/2));
     }
 
-    if (u32NumBytes >= pstcHandle->FIFOPTR_b.FIFOREM)
+    if (u32NumBytes > pstcHandle->FIFOPTR_b.FIFOREM)
     {
         IOM_ASSERT("ApolloIom_SpiTransfer, the fifo couldn't fit the requested number of bytes\r\n");
         return Error; //The fifo couldn't fit the requested number of bytes
     }
 
-    u32NumBytes = DataToFifo(pstcHandle,pu8DataOut,u32NumBytes);
+    u32NumBytes = DataToFifo(pstcHandle,pstcData->stcBuffer.pu8DataPosOUT,u32NumBytes);
 
     u32IrqBackup = pstcHandle->INTEN;
     pstcHandle->INTEN = 0;
     pstcHandle->INTCLR = 0xFFFFFFFF;
 
     pstcData->stcBuffer.u32BytesLeft -= u32NumBytes;
-    pstcData->stcBuffer.pu8DataPos += u32NumBytes;
+    pstcData->stcBuffer.pu8DataPosOUT += u32NumBytes;
+
+    pstcData->stcBuffer.u8LastTransferSize = u32NumBytes;
 
     ApolloIom_SpiCommand(pstcHandle,AM_HAL_IOM_WRITE,u32ChipSelect,u32NumBytes,u32Options);
 
     *pu32BytesWritten = u32NumBytes;
+
+    if (pfnCallback == NULL)
+    {
+        if (WaitReadyTimeout(pstcHandle) != Ok) 
+        {
+            IOM_ASSERT("ApolloIom_SpiTransfer, timed-out\r\n");
+            return ErrorTimeout;
+        }
+        len = u32NumBytes; 
+        while(len > 0)
+        {
+            if (u32NumBytes == 0) break;
+            len = u32NumBytes;
+            len = FifoToData(pstcHandle,pstcData->stcBuffer.pu8DataPosIN,u32NumBytes);
+            if (len > u32NumBytes)
+            {
+                IOM_ASSERT("ApolloIom_SpiRead, data length in fifo greater than expected bytes\r\n");
+                return Error;
+            }
+            u32NumBytes -= len;
+            u32BytesRead += len;
+            pstcData->stcBuffer.pu8DataPosIN += len;
+        }
+    }
+
     pstcHandle->INTEN = u32IrqBackup;
 
     if (FALSE == ApolloIom_CheckReady(pstcHandle)) 
@@ -2556,27 +2671,23 @@ en_result_t ApolloIom_SpiTransfer(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSele
 ******************************************************************************/
 en_result_t ApolloIom_I2cWrite(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesWritten, uint32_t u32Options)
 {
-    uint32_t tmp;
-    volatile uint32_t u32Timeout;
+    uint32_t tmp = 0;
     uint32_t u32IrqBackup;
+    stc_apolloiom_intern_data_t* pstcData;
 
     if (pu32BytesWritten == NULL) pu32BytesWritten = &tmp;
+    *pu32BytesWritten = 0;
 
     if (pstcHandle == NULL) 
     {
         IOM_ASSERT("ApolloIom_I2cWrite, pstcHandle is NULL\r\n");
         return ErrorInvalidParameter;
     }
+
+    pstcData = GetInternDataPtr(pstcHandle);
+
     //Poll for IOM had completed the operation
-    u32Timeout = compute_freq( pstcHandle->CLKCFG_b.FSEL, pstcHandle->CLKCFG_b.DIV3,  pstcHandle->CLKCFG_b.DIVEN, pstcHandle->CLKCFG_b.TOTPER);
-    u32Timeout = u32Timeout / ((MAX_FIFO_SIZE + 5) * 8);
-    u32Timeout = (SystemCoreClock / u32Timeout) / 5;
-    while(u32Timeout > 0)
-    {
-        u32Timeout--;
-        if ((pstcHandle->STATUS_b.IDLEST == 1) && (pstcHandle->STATUS_b.CMDACT == 0)) break;
-    }
-    if (u32Timeout == 0) 
+    if (WaitReadyTimeout(pstcHandle) != Ok) 
     {
         IOM_ASSERT("ApolloIom_I2cWrite, timed-out\r\n");
         return ErrorTimeout;
@@ -2597,7 +2708,7 @@ en_result_t ApolloIom_I2cWrite(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,
     pstcHandle->INTCLR = 0xFFFFFFFF;
 
 #if defined(APOLLO_H) || defined(APOLLO1_H) || defined(APOLLO2_H)
-    if (u32NumBytes >= pstcHandle->FIFOPTR_b.FIFOREM)
+    if (u32NumBytes > pstcHandle->FIFOPTR_b.FIFOREM)
     {
          IOM_ASSERT("ApolloIom_I2cWrite, the fifo couldn't fit the requested number of bytes\r\n");
         return Error; //The fifo couldn't fit the requested number of bytes
@@ -2610,7 +2721,7 @@ en_result_t ApolloIom_I2cWrite(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,
 #endif
 
     u32NumBytes = DataToFifo(pstcHandle,pu8Data,u32NumBytes);
-
+    pstcData->stcBuffer.u8LastTransferSize = u32NumBytes;
     ApolloIom_I2cCommand(pstcHandle,AM_HAL_IOM_WRITE,u32BusAddress,u32NumBytes,u32Options);
     *pu32BytesWritten = u32NumBytes;
     pstcHandle->INTEN = u32IrqBackup;
@@ -2645,21 +2756,16 @@ en_result_t ApolloIom_I2cRead(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, 
     uint32_t tmp;
     uint32_t len;
     uint32_t u32IrqBackup;
-//    int i;
     volatile uint32_t u32Timeout;
+    stc_apolloiom_intern_data_t* pstcData;
 
     if (pu32BytesRead == NULL) pu32BytesRead = &tmp;
+    *pu32BytesRead = 0;
+
+    pstcData = GetInternDataPtr(pstcHandle);
 
     //Poll for IOM had completed the operation
-    u32Timeout = compute_freq( pstcHandle->CLKCFG_b.FSEL, pstcHandle->CLKCFG_b.DIV3,  pstcHandle->CLKCFG_b.DIVEN, pstcHandle->CLKCFG_b.TOTPER);
-    u32Timeout = u32Timeout / ((MAX_FIFO_SIZE + 5) * 8);
-    u32Timeout = (SystemCoreClock / u32Timeout) / 5;
-    while(u32Timeout > 0)
-    {
-        u32Timeout--;
-        if ((pstcHandle->STATUS_b.IDLEST == 1) && (pstcHandle->STATUS_b.CMDACT == 0)) break;
-    }
-    if (u32Timeout == 0) 
+    if (WaitReadyTimeout(pstcHandle) != Ok) 
     {
         IOM_ASSERT("ApolloIom_I2cRead,timed-out\r\n");
         return ErrorTimeout;
@@ -2685,6 +2791,7 @@ en_result_t ApolloIom_I2cRead(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, 
 //        pstcHandle->FIFOPUSH = 0xFFFFFFFF;
 //    }
 //#endif
+    pstcData->stcBuffer.u8LastTransferSize = u32NumBytes;
     ApolloIom_I2cCommand(pstcHandle,AM_HAL_IOM_READ,u32BusAddress,u32NumBytes,u32Options);
 
     u32Timeout = 0;
@@ -2777,6 +2884,27 @@ en_result_t ApolloIom_I2cWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32Bus
     en_result_t res = Ok;
     res = ApolloIom_I2cWrite(pstcHandle,u32BusAddress,pu8Data,u32Length,NULL,AM_HAL_IOM_OFFSET(u8Register));
     return res;
+}
+
+/**
+******************************************************************************
+** \brief  Check for the I2C ack
+**
+** \param pstcHandle      IOM handle: IOMSTR0 or IOMSTR1 for Apollo, IOMSTR1..5 for Apollo 2
+**
+** \return                TRUE for NAK, FALSE for ACK
+******************************************************************************/
+boolean_t ApolloIom_I2CNakReceived(IOMSTR0_Type* pstcHandle)
+{
+    if (pstcHandle == NULL) 
+    {
+        return FALSE;
+    }
+    if (pstcHandle->INTSTAT_b.NAK)
+    {
+        return TRUE;
+    }
+    return FALSE;
 }
 
 /**
@@ -2918,7 +3046,6 @@ en_result_t ApolloIom_SpiRead(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, 
     uint32_t u32ReadLen = 0;
     uint32_t tmp;
     uint32_t len;
-    volatile uint32_t u32Timeout;
     stc_apolloiom_intern_data_t* pstcData;
     uint32_t u32IrqBackup;
     uint32_t i = 0;
@@ -2937,7 +3064,6 @@ en_result_t ApolloIom_SpiRead(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, 
         return Error;
     }
     if (pu32BytesRead == NULL) pu32BytesRead = &tmp;
-
     *pu32BytesRead = 0;
 
     pstcData->pfnCallback = pfnCallback;
@@ -2974,15 +3100,7 @@ en_result_t ApolloIom_SpiRead(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, 
     #endif
 
     //Poll for IOM had completed the operation
-    u32Timeout = compute_freq( pstcHandle->CLKCFG_b.FSEL, pstcHandle->CLKCFG_b.DIV3,  pstcHandle->CLKCFG_b.DIVEN, pstcHandle->CLKCFG_b.TOTPER);
-    u32Timeout = u32Timeout / ((MAX_FIFO_SIZE + 5) * 8);
-    u32Timeout = (SystemCoreClock / u32Timeout) / 5;
-    while(u32Timeout > 0)
-    {
-        u32Timeout--;
-        if ((pstcHandle->STATUS_b.IDLEST == 1) && (pstcHandle->STATUS_b.CMDACT == 0)) break;
-    }
-    if (u32Timeout == 0) 
+    if (WaitReadyTimeout(pstcHandle) != Ok) 
     {
         IOM_ASSERT("ApolloIom_SpiRead, timed-out\r\n");
         return ErrorTimeout;
@@ -3008,6 +3126,8 @@ en_result_t ApolloIom_SpiRead(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect, 
         pstcHandle->FIFOPUSH = 0xFFFFFFFF;
     }
 #endif
+    
+    pstcData->stcBuffer.u8LastTransferSize = u32NumBytes;
     ApolloIom_SpiCommand(pstcHandle,AM_HAL_IOM_READ,u32ChipSelect,u32NumBytes,u32Options);
 
     if (pfnCallback == NULL)
@@ -3448,6 +3568,13 @@ void ApolloIom_IRQHandler(IOMSTR0_Type* pstcHandle)
 #else
     u32ReadLen = pstcHandle->FIFOPTR_b.FIFO0SIZ;
 #endif
+#if defined(APOLLO2_H)
+    if ((pstcData->stcBuffer.u32State_b.TX == 1) && (pstcHandle->CFG_b.FULLDUP == 1) && (pstcHandle->INTSTAT_b.CMDCMP == 1))
+    {
+        u32ReadLen = pstcData->stcBuffer.u8LastTransferSize;
+    }
+#endif
+
     //if the read length is > 0, read data and check if there is more data to read
     if (u32ReadLen > 0)
     {
@@ -3455,9 +3582,14 @@ void ApolloIom_IRQHandler(IOMSTR0_Type* pstcHandle)
         u32ReadLen = FifoToData(pstcHandle,pstcData->stcBuffer.pu8DataPos,u32ReadLen);
 
         //update the buffer
-        pstcData->stcBuffer.pu8DataPos += u32ReadLen;
-        pstcData->stcBuffer.u32BytesLeft -= u32ReadLen;
+        pstcData->stcBuffer.pu8DataPosIN += u32ReadLen;
 
+         #if defined(APOLLO2_H)
+         if (pstcHandle->CFG_b.FULLDUP != 1)
+         #endif
+         {
+         pstcData->stcBuffer.u32BytesLeft -= u32ReadLen;
+         }
         //check there is no more data to process
         if (pstcData->stcBuffer.u32BytesLeft == 0)
         {
@@ -3481,7 +3613,7 @@ void ApolloIom_IRQHandler(IOMSTR0_Type* pstcHandle)
 
             //update the next data to read
             u32ReadLen = pstcData->stcBuffer.u32BytesLeft;
-            u32ReadLen = (u32ReadLen <= MAX_FIFO_SIZE ? u32ReadLen : MAX_FIFO_SIZE);
+            u32ReadLen = (u32ReadLen <= (MAX_FIFO_SIZE/2) ? u32ReadLen : (MAX_FIFO_SIZE/2));
 
             #if defined(APOLLO2_H)
                 if ((pstcData->stcBuffer.u32State_b.TX == 1) && (pstcHandle->CFG_b.FULLDUP == 1))
@@ -3489,17 +3621,19 @@ void ApolloIom_IRQHandler(IOMSTR0_Type* pstcHandle)
                     //initiate the in/out transfer
                     u32NumBytes = pstcData->stcBuffer.u32BytesLeft;
 
-                    u32NumBytes = (u32NumBytes <= MAX_FIFO_SIZE ? u32NumBytes : MAX_FIFO_SIZE);
+                    u32NumBytes = (u32NumBytes <= (MAX_FIFO_SIZE/2) ? u32NumBytes : (MAX_FIFO_SIZE/2));
                     u32NumBytes = DataToFifo(pstcHandle,pstcData->stcBuffer.pu8DataPosOUT,u32NumBytes);
 
                     pstcData->stcBuffer.u32BytesLeft -= u32NumBytes;
-                    pstcData->stcBuffer.pu8DataPos += u32NumBytes;
+                    pstcData->stcBuffer.pu8DataPosOUT += u32NumBytes;
 
+                    pstcData->stcBuffer.u8LastTransferSize = u32NumBytes;
                     ApolloIom_SpiCommand(pstcHandle,AM_HAL_IOM_WRITE,pstcData->stcBuffer.u32Chipselect,u32NumBytes,pstcData->stcBuffer.u32Options);
                 } else
             #endif
                 {
                     //initiate the read transfer
+                    pstcData->stcBuffer.u8LastTransferSize = u32ReadLen;
                     ApolloIom_SpiCommand(pstcHandle,AM_HAL_IOM_READ,pstcData->stcBuffer.u32Chipselect,u32ReadLen,pstcData->stcBuffer.u32Options);
                 }
         }

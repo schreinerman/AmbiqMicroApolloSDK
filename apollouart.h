@@ -60,11 +60,15 @@
  **                                          Added debug tracing
  **   - 2019-03-07  V2.0  Manuel Schreiner   Fixed not initialized FIFO in extended UART initialization
  **   - 2019-03-12  V2.0a Manuel Schreiner   Added advanced IRQ handling
+ **   - 2019-03-13  V2.0b Manuel Schreiner   Added proper internal data initialization
+ **   - 2019-03-25  V2.1  Manuel Schreiner   Added __APOLLOUART_VERSION__ and __APOLLOUART_DATE__ defines
  **
  *****************************************************************************/
 
 #ifndef __APOLLOUART_H__
 #define __APOLLOUART_H__
+#define __APOLLOUART_VERSION__  21
+#define __APOLLOUART_DATE__     "2019-03-25"
 
 /* C binding of definitions if building with C++ compiler */
 #ifdef __cplusplus
