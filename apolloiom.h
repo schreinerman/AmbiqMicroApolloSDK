@@ -55,11 +55,16 @@ so agrees to indemnify Fujitsu against all liability.
 **   - 2019-01-10  v1.7f Manuel Schreiner   Added CS configuration and Debug information
 **   - 2019-01-23  v1.8  Manuel Schreiner   Updated for Apollo1 usage
 **   - 2019-03-04  v1.9  Manuel Schreiner   Added better timeout handling
+**   - 2019-03-25  V2.0  Manuel Schreiner   Added __APOLLOIOM_VERSION__ and __APOLLOIOM_DATE__ defines
+**                                          Fixed uninitialized bytes written / bytes read
+**                                          Added preliminary full-duplex support for Apollo2 / Apollo3Blue SPI
+**                                          Disabling fullduplex for I2C 
 **
 *****************************************************************************/
 #ifndef __APOLLOIOM_H__
 #define __APOLLOIOM_H__
-
+#define __APOLLOIOM_VERSION__  20
+#define __APOLLOIOM_DATE__     "2019-03-25"
 /* C binding of definitions if building with C++ compiler */
 #ifdef __cplusplus
 extern "C"
@@ -606,6 +611,7 @@ typedef struct stc_apolloiom_nb_buffer
     uint32_t u32Chipselect;
     uint8_t *pu8DataOUT;
     uint8_t *pu8DataPosOUT;
+    uint8_t u8LastTransferSize;
 } stc_apolloiom_nb_buffer_t;
 
 
@@ -673,6 +679,7 @@ en_result_t ApolloIom_I2cWrite(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,
 en_result_t ApolloIom_I2cRead(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress, uint8_t* pu8Data, uint32_t u32NumBytes, uint32_t* pu32BytesRead, uint32_t u32Options);
 en_result_t ApolloIom_I2cReadRegister(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
 en_result_t ApolloIom_I2cWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32BusAddress,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
+boolean_t ApolloIom_I2CNakReceived(IOMSTR0_Type* pstcHandle);
 en_result_t ApolloIom_I2cBusReset(IOMSTR0_Type* pstcHandle);
 en_result_t ApolloIom_SpiReadRegister(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);
 en_result_t ApolloIom_SpiWriteRegister(IOMSTR0_Type* pstcHandle, uint32_t u32ChipSelect,uint8_t u8Register, uint8_t* pu8Data, uint32_t u32Length);

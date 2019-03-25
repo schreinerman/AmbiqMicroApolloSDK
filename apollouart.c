@@ -60,6 +60,7 @@
  **                                          Added debug tracing
  **   - 2019-03-07  V2.0  Manuel Schreiner   Fixed not initialized FIFO in extended UART initialization
  **   - 2019-03-12  V2.0a Manuel Schreiner   Added advanced IRQ handling
+ **   - 2019-03-13  V2.0b Manuel Schreiner   Added proper internal data initialization
  **
  *****************************************************************************/
 #define __APOLLOUART_C__
@@ -416,7 +417,18 @@ static stc_apollouart_instance_data_t m_astcInstanceDataLut[] =
     {   (UART),    // pstcInstance
         { //stc_apollouart_intern_data_t
             NULL, //pfn_apollouart_txnext_t cbTxNext;
-            NULL, //pfn_apollouart_rx_t cbRx;
+            NULL, //pfn_apollouart_rx_t cbRxSimple;
+            NULL, //pfn_apollouart_cb_t cbOverrun;
+            NULL, //pfn_apollouart_cb_t cbBreakError;
+            NULL, //pfn_apollouart_cb_t cbParityError;
+            NULL, //pfn_apollouart_cb_t cbFramingError;
+            NULL, //pfn_apollouart_cb_t cbRxTimeout;
+            NULL, //pfn_apollouart_cb_t cbTx;
+            NULL, //pfn_apollouart_cb_t cbRx;
+            NULL, //pfn_apollouart_cb_t cbDsr;
+            NULL, //pfn_apollouart_cb_t cbDcd;
+            NULL, //pfn_apollouart_cb_t cbCts;
+            NULL, //pfn_apollouart_cb_t cbRi; / pfn_apollouart_cb_t cbTxCmp;
             FALSE, //bInitialized
             FALSE, //bRxEnabled
             FALSE, //bTxEnabled
@@ -458,7 +470,18 @@ static stc_apollouart_instance_data_t m_astcInstanceDataLut[] =
     { (UART0),   // pstcInstance
     { //stc_apollouart_intern_data_t
             NULL, //pfn_apollouart_txnext_t cbTxNext;
-            NULL, //pfn_apollouart_rx_t cbRx;
+            NULL, //pfn_apollouart_rx_t cbRxSimple;
+            NULL, //pfn_apollouart_cb_t cbOverrun;
+            NULL, //pfn_apollouart_cb_t cbBreakError;
+            NULL, //pfn_apollouart_cb_t cbParityError;
+            NULL, //pfn_apollouart_cb_t cbFramingError;
+            NULL, //pfn_apollouart_cb_t cbRxTimeout;
+            NULL, //pfn_apollouart_cb_t cbTx;
+            NULL, //pfn_apollouart_cb_t cbRx;
+            NULL, //pfn_apollouart_cb_t cbDsr;
+            NULL, //pfn_apollouart_cb_t cbDcd;
+            NULL, //pfn_apollouart_cb_t cbCts;
+            NULL, //pfn_apollouart_cb_t cbRi; / pfn_apollouart_cb_t cbTxCmp;
             FALSE, //bInitialized
             FALSE, //bRxEnabled
             FALSE, //bTxEnabled
@@ -500,7 +523,18 @@ static stc_apollouart_instance_data_t m_astcInstanceDataLut[] =
     { (UART1),   // pstcInstance
     { //stc_apollouart_intern_data_t
             NULL, //pfn_apollouart_txnext_t cbTxNext;
-            NULL, //pfn_apollouart_rx_t cbRx;
+            NULL, //pfn_apollouart_rx_t cbRxSimple;
+            NULL, //pfn_apollouart_cb_t cbOverrun;
+            NULL, //pfn_apollouart_cb_t cbBreakError;
+            NULL, //pfn_apollouart_cb_t cbParityError;
+            NULL, //pfn_apollouart_cb_t cbFramingError;
+            NULL, //pfn_apollouart_cb_t cbRxTimeout;
+            NULL, //pfn_apollouart_cb_t cbTx;
+            NULL, //pfn_apollouart_cb_t cbRx;
+            NULL, //pfn_apollouart_cb_t cbDsr;
+            NULL, //pfn_apollouart_cb_t cbDcd;
+            NULL, //pfn_apollouart_cb_t cbCts;
+            NULL, //pfn_apollouart_cb_t cbRi; / pfn_apollouart_cb_t cbTxCmp;
             FALSE, //bInitialized
             0, //u32RegCR
             (3 << UART_LCRH_WLEN_Pos), //u32RegLCRH, default: 8 databits, no parity, 1 stopbit
