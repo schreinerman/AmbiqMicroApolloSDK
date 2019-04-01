@@ -42,6 +42,7 @@ so agrees to indemnify Fujitsu against all liability.
  **   - 2018-07-06  V1.2  Manuel Schreiner   Updated documentation, 
  **                                          now part of the FEEU ClickBeetle(TM) SW Framework
  **                                          added high/low state using level and no PWM
+ **   - 2019-03-25  V1.3  Manuel Schreiner   Added __APOLLOCTIMER_VERSION__ and __APOLLOCTIMER_DATE__ defines
  **
  *****************************************************************************/
 #define __APOLLOCTIMER_C__
