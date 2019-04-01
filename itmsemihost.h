@@ -39,11 +39,14 @@
  **   - 2017-04-04  V1.1  Manuel Schreiner   ITMSEMIHOST_ENABLED added (to be defined in RTE_Device.h)
  **   - 2018-07-06  V1.2  Manuel Schreiner   Updated documentation, 
  **                                          now part of the FEEU ClickBeetle(TM) SW Framework
+ **   - 2019-03-25  V1.3  Manuel Schreiner   Added __ITMSEMIHOST_VERSION__ and __ITMSEMIHOST_DATE__ defines
  **
  *****************************************************************************/
 
 #ifndef __ITMSEMIHOST_H__
 #define __ITMSEMIHOST_H__
+#define __ITMSEMIHOST_VERSION__  13
+#define __ITMSEMIHOST_DATE__     "2019-03-25"
 
 /* C binding of definitions if building with C++ compiler */
 #ifdef __cplusplus
