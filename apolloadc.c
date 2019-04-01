@@ -43,6 +43,7 @@ so agrees to indemnify Fujitsu against all liability.
  **                                          now part of the FEEU ClickBeetle(TM) SW Framework
  **   - 2018-08-09  V1.3  Manuel Schreiner   Added support for Apollo3
  **   - 2019-03-07  V1.4  Manuel Schreiner   Fixed wrong battload setting for Apollo2
+ **   - 2019-03-25  V1.5  Manuel Schreiner   Added __APOLLOADC_VERSION__ and __APOLLOADC_DATE__ defines
  **
  *****************************************************************************/
 #define __APOLLOADC_C__
@@ -448,7 +449,7 @@ float32_t ApolloAdc_CheckBattery(boolean_t bLowPower)
 #if defined(APOLLO3_H) || defined(APOLLO2_H)
     MCUCTRL->ADCBATTLOAD_b.BATTLOAD = 1;
 #else
-    u32Cfg |= (1 << ADC_CFG_BATTLOAD_Pos); ADC
+    u32Cfg |= (1 << ADC_CFG_BATTLOAD_Pos); 
 #endif
     
     #if defined(APOLLO2_H) 
