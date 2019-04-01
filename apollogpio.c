@@ -48,6 +48,7 @@ so agrees to indemnify Fujitsu against all liability.
  **                                          Added Arduino API, enable via RTE_Device.h APOLLOGPIO_USE_ARDUINO
  **   - 2019-03-05  V1.6  Manuel Schrener    Added GPIO number validation
  **                                          Added function for reading current configuration
+ **   - 2019-03-25  V1.7  Manuel Schreiner   Added __APOLLOGPIO_VERSION__ and __APOLLOGPIO_DATE__ defines
  **
  *****************************************************************************/
 #define __APOLLOGPIO_C__
@@ -791,16 +792,12 @@ en_apollogpio_mode_t ApolloGpio_GpioGetOutputConfiguration(apollogpio_gpio_pin_t
     {
         case 0:
           return GpioOutputDisabled;
-          break;
         case 1:
           return GpioPushPull;
-          break;
         case 2:
           return GpioOpenDrain;
-          break;
         case 3:
           return GpioTriState;
-          break;
     }
     return GpioOutputDisabled;
 }

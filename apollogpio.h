@@ -48,10 +48,13 @@ so agrees to indemnify Fujitsu against all liability.
  **                                          Added Arduino API, enable via RTE_Device.h APOLLOGPIO_USE_ARDUINO 
  **   - 2019-03-05  V1.6  Manuel Schrener    Added GPIO number validation
  **                                          Added function for reading current configuration
+ **   - 2019-03-25  V1.7  Manuel Schreiner   Added __APOLLOGPIO_VERSION__ and __APOLLOGPIO_DATE__ defines
  **
  *****************************************************************************/
 #ifndef __APOLLOGPIO_H__
 #define __APOLLOGPIO_H__
+#define __APOLLOGPIO_VERSION__  17
+#define __APOLLOGPIO_DATE__     "2019-03-25"
 
 /* C binding of definitions if building with C++ compiler */
 #ifdef __cplusplus
