@@ -42,6 +42,7 @@ so agrees to indemnify Fujitsu against all liability.
  **   - 2018-07-06  V1.2  Manuel Schreiner   Updated documentation, 
  **                                          now part of the FEEU ClickBeetle(TM) SW Framework
  **   - 2019-01-11  V1.3  Manuel Schreiner   Added cache control for Apollo2
+ **   - 2019-03-25  V1.4  Manuel Schreiner   Added __APOLLOSYSCTRL_VERSION__ and __APOLLOSYSCTRL_DATE__ defines
  **
  *****************************************************************************/
 #define __APOLLOSYSCTRL_C__
