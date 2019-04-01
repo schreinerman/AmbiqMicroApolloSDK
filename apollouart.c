@@ -1,4 +1,4 @@
-/*******************************************************************************
+﻿/*******************************************************************************
 * Copyright (C) 2016, Fujitsu Electronics Europe GmbH or a                     *
 * subsidiary of Fujitsu Electronics Europe GmbH.                               *
 *                                                                              *
@@ -61,6 +61,7 @@
  **   - 2019-03-07  V2.0  Manuel Schreiner   Fixed not initialized FIFO in extended UART initialization
  **   - 2019-03-12  V2.0a Manuel Schreiner   Added advanced IRQ handling
  **   - 2019-03-13  V2.0b Manuel Schreiner   Added proper internal data initialization
+ **   - 2019-03-25  V2.1  Manuel Schreiner   Added __APOLLOUART_VERSION__ and __APOLLOUART_DATE__ defines
  **
  *****************************************************************************/
 #define __APOLLOUART_C__
