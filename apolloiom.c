@@ -74,6 +74,7 @@ so agrees to indemnify Fujitsu against all liability.
 
 //set DEBUG_OUTPUT 1 and IOM_DEBUG to 1 in RTE_Device.h to have Debug information output
 #if (DEBUG_OUTPUT == 1) && (!defined(debugprint))
+#include <stdio.h>
 #define debugprint(...) if ((CoreDebug->DHCSR & (1 << CoreDebug_DHCSR_C_DEBUGEN_Pos)) != 0) printf(__VA_ARGS__)
 #define debugprintln(...) debugprint(__VA_ARGS__); debugprint("\r\n")
 #endif
