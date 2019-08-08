@@ -59,6 +59,11 @@ so agrees to indemnify Fujitsu against all liability.
 **                                          Fixed uninitialized bytes written / bytes read
 **                                          Added preliminary full-duplex support for Apollo2 / Apollo3Blue SPI
 **                                          Disabling fullduplex for I2C 
+**   - 2019-07-02  V2.0b Manuel Schreiner   Optimizing I2C / SPI for Apollo3Blue
+**   - 2019-07-12  V2.0c Manuel Schreiner   Optimized time-out & SPI polled transfer
+**                                          Fixed missing code for non-duplex FIFO bytes
+**   - 2019-08-08  V2.0d Manuel Schreiner   Optimized check for command operation had started (Apollo3Blue)
+**   - 2019-08-08  V2.0e Manuel Schreiner   Added Apollo3Blue CS configuration
 **
 *****************************************************************************/
 #ifndef __APOLLOIOM_H__
@@ -660,7 +665,7 @@ typedef struct stc_apolloiom_instance_data
 
 en_result_t ApolloIOM_InitSpiCs(IOMSTR0_Type* pstcHandle, uint8_t u8Pin,uint8_t* pu8Channel);
 en_result_t ApolloIOM_GetCsChannel(IOMSTR0_Type* pstcHandle, uint8_t u8Pin, uint8_t* pu8Channel);
-en_result_t ApolloIOM_GetCsChannelAndFunction(IOMSTR0_Type* pstcHandle, uint8_t u8Pin, uint8_t* pu8Function, uint8_t* pu8Channel);
+en_result_t ApolloIOM_GetCsChannelAndFunction(IOMSTR0_Type* pstcHandle, uint8_t u8Pin, uint8_t* pu8Function, uint8_t* pu8Channel, uint8_t* pu8OutConfig);
 en_result_t ApolloIOM_Enable(IOMSTR0_Type* pstcHandle);
 en_result_t ApolloIOM_Disable(IOMSTR0_Type* pstcHandle);
 en_result_t ApolloIom_CheckReady(IOMSTR0_Type* pstcHandle);
